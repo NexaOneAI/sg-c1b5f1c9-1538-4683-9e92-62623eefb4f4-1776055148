@@ -59,6 +59,8 @@ export async function getConversationMessages(conversationId: string): Promise<M
 
 export async function addMessage(
   conversationId: string,
+  projectId: string,
+  userId: string,
   role: "user" | "assistant" | "system",
   content: string,
   metadata?: Record<string, any>
@@ -67,6 +69,8 @@ export async function addMessage(
     .from("messages")
     .insert({
       conversation_id: conversationId,
+      project_id: projectId,
+      user_id: userId,
       role,
       content,
       metadata: metadata || {},

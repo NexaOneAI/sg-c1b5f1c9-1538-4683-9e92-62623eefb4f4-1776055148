@@ -80,11 +80,14 @@ function BuilderContent() {
   }
 
   async function handleSendMessage(content: string) {
-    if (!conversation) return;
+    if (!conversation || !project) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
     setIsProcessing(true);
 
-    const userMessage = await addMessage(conversation.id, "user", content);
+    const userMessage = await addMessage(conversation.id, project.id, user.id, "user", content);
     if (userMessage) {
       setMessages((prev) => [...prev, userMessage]);
     }
@@ -94,6 +97,8 @@ function BuilderContent() {
     setTimeout(async () => {
       const assistantMessage = await addMessage(
         conversation.id,
+        project.id,
+        user.id,
         "assistant",
         "Funcionalidad de IA en desarrollo. Próximamente podrás generar código real con OpenAI."
       );
