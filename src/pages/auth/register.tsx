@@ -26,32 +26,57 @@ export default function RegisterPage() {
     setLoading(true);
     setSetupMessage("Creando cuenta...");
 
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-        },
-      },
-    });
+    try {
+      console.log("🔐 Intentando registrar usuario:", email);
 
-    if (signUpError) {
-      setError(signUpError.message);
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+        },
+      });
+
+      if (signUpError) {
+        console.error("❌ Error de Supabase:", signUpError);
+        
+        // Mejorar mensaje de error
+        let errorMessage = signUpError.message;
+        
+        if (signUpError.message.includes("Invalid API key")) {
+          errorMessage = "Error de configuración de Supabase. Contacta al administrador.";
+        } else if (signUpError.message.includes("User already registered")) {
+          errorMessage = "Este email ya está registrado. Intenta iniciar sesión.";
+        }
+        
+        setError(errorMessage);
+        setLoading(false);
+        setSetupMessage("");
+        return;
+      }
+
+      if (data.user) {
+        console.log("✅ Usuario creado:", data.user.id);
+        setSetupMessage("Configurando perfil y créditos...");
+        
+        // Esperar a que el trigger cree el perfil, wallet y suscripción
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        console.log("✅ Setup completado, redirigiendo...");
+        setSuccess(true);
+        setSetupMessage("¡Todo listo! Redirigiendo...");
+        
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 1500);
+      }
+    } catch (err: any) {
+      console.error("❌ Error inesperado:", err);
+      setError(err.message || "Error inesperado. Intenta nuevamente.");
       setLoading(false);
       setSetupMessage("");
-    } else if (data.user) {
-      setSetupMessage("Configurando perfil y créditos...");
-      
-      // Esperar a que el trigger cree el perfil, wallet y suscripción
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      setSuccess(true);
-      setSetupMessage("¡Todo listo! Redirigiendo...");
-      
-      setTimeout(() => {
-        router.push("/dashboard");
-      }, 1500);
     }
   }
 
