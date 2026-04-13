@@ -1,34 +1,44 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 
-/**
- * API Route: /api/ai/generate
- * 
- * Sistema dual de IA con OpenAI y Claude:
- * - GPT-4o Mini: Tareas generales y rápidas (10 créditos) - MÁS ACCESIBLE
- * - GPT-3.5 Turbo: Fallback si GPT-4o no disponible (5 créditos)
- * - Claude 3.5 Sonnet: Arquitectura compleja (20 créditos) - Requiere ANTHROPIC_API_KEY
- * - Claude 3 Opus: Máxima calidad (40 créditos) - Requiere ANTHROPIC_API_KEY
- * 
- * SETUP REQUERIDO:
- * 1. OpenAI: https://platform.openai.com/api-keys
- *    - Crear API key
- *    - Agregar créditos prepagados (mínimo $5)
- *    - Verificar acceso en: https://platform.openai.com/settings/organization/limits
- * 
- * 2. Claude (OPCIONAL): https://console.anthropic.com/
- *    - Solo si quieres usar modelos Claude
- * 
- * 3. Agregar API keys en .env.local:
- *    OPENAI_API_KEY=sk-proj-...
- *    ANTHROPIC_API_KEY=sk-ant-... (opcional)
- */
+// Inicializar clientes IA
+const openai = process.env.OPENAI_API_KEY 
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
-type AIModel = "gpt4" | "gpt3" | "claude_sonnet" | "claude_opus";
+const anthropic = process.env.ANTHROPIC_API_KEY
+  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  : null;
 
-type GenerateRequest = {
+// Sistema de prompt
+const SYSTEM_PROMPT = `Eres un asistente de IA experto en desarrollo web con Next.js, React y TypeScript.
+
+INSTRUCCIONES CRÍTICAS:
+1. Genera código completo, funcional y listo para producción
+2. Usa TypeScript estricto con tipos correctos
+3. Sigue las mejores prácticas de React y Next.js
+4. Usa Tailwind CSS para estilos
+5. SIEMPRE responde con JSON válido en este formato exacto:
+
+{
+  "message": "Explicación breve de lo que hiciste",
+  "files": [
+    {
+      "path": "ruta/completa/del/archivo.tsx",
+      "content": "contenido completo del archivo",
+      "action": "create" | "update" | "delete"
+    }
+  ]
+}
+
+NO uses markdown, NO agregues explicaciones fuera del JSON.`;
+
+// Tipos
+type AIModel = "claude_sonnet" | "claude_opus" | "gpt4" | "gpt3";
+
+interface GenerateRequest {
   projectId: string;
   userId: string;
   prompt: string;
@@ -37,74 +47,22 @@ type GenerateRequest = {
     files?: Array<{ path: string; content: string }>;
     previousMessages?: Array<{ role: string; content: string }>;
   };
-};
+}
 
-type GenerateResponse = {
+interface GenerateResponse {
   success: boolean;
-  code?: {
+  data?: {
+    message: string;
     files: Array<{
       path: string;
       content: string;
       action: "create" | "update" | "delete";
     }>;
-    explanation: string;
+    creditsUsed: number;
+    modelUsed: string;
   };
   error?: string;
-  creditsUsed?: number;
-  modelUsed?: string;
-};
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-}) : null;
-
-const SYSTEM_PROMPT = `Eres un experto arquitecto de software y desarrollador full-stack especializado en React, TypeScript, Next.js y Tailwind CSS.
-
-TU MISIÓN:
-Generar código limpio, modular, funcional y production-ready basado en las instrucciones del usuario.
-
-REGLAS ESTRICTAS:
-1. **Código completo**: Nunca uses placeholders, comentarios TODO, o código incompleto
-2. **TypeScript estricto**: Tipos explícitos, interfaces claras, sin any
-3. **Componentes modulares**: Separa concerns, DRY principle, reutilizables
-4. **Tailwind CSS**: Usa utility classes, responsive design, diseño premium
-5. **Estructura clara**: Organiza por carpetas lógicas (components, services, pages, lib)
-6. **Nombres descriptivos**: Variables, funciones y archivos con nombres claros
-7. **Sin comentarios innecesarios**: El código debe ser autoexplicativo
-8. **Manejo de errores**: Try-catch, validaciones, estados de loading/error
-9. **Accesibilidad**: ARIA labels, contraste adecuado, navegación por teclado
-10. **Performance**: Lazy loading, memoización cuando corresponda, optimizaciones
-
-FORMATO DE RESPUESTA:
-Retorna SIEMPRE un objeto JSON válido con esta estructura exacta:
-
-{
-  "files": [
-    {
-      "path": "src/components/Example.tsx",
-      "content": "código completo del archivo",
-      "action": "create" | "update" | "delete"
-    }
-  ],
-  "explanation": "Explicación concisa de los cambios realizados"
 }
-
-CONTEXTO DEL PROYECTO:
-- Framework: Next.js 15 (Page Router)
-- Styling: Tailwind CSS + shadcn/ui
-- Database: Supabase (PostgreSQL)
-- Auth: Supabase Auth
-- Deploy: Vercel
-
-IMPORTANTE:
-- Si el usuario pide "crear un componente", incluye imports, tipos, y código funcional completo
-- Si pide "modificar", analiza el código existente y haz cambios quirúrgicos
-- Si hay dependencias externas necesarias, menciónalas en la explicación
-- Mantén la coherencia con el stack y patrones del proyecto`;
 
 export default async function handler(
   req: NextApiRequest,
@@ -124,10 +82,10 @@ export default async function handler(
   }
 
   try {
-    // Crear cliente Supabase con la sesión del usuario
+    // Crear cliente Supabase
     const supabase = createServerSupabaseClient(req);
 
-    // 1. Obtener costos configurados para cada modelo
+    // 1. Obtener costos
     const { data: settings } = await supabase
       .from("admin_settings")
       .select("value")
@@ -144,310 +102,217 @@ export default async function handler(
     const selectedModel = modelCosts[model] || modelCosts.claude_sonnet;
     const generationCost = selectedModel.cost || 15;
 
-    // 2. Verificar créditos del usuario con el cliente autenticado
+    // 2. Verificar créditos
     const { data: wallet, error: walletError } = await supabase
       .from("credit_wallets")
       .select("id, balance")
       .eq("user_id", userId)
       .single();
 
-    console.log("💰 Wallet check:", { 
-      wallet, 
-      walletError, 
-      userId, 
-      generationCost,
-      hasAuthHeader: !!req.headers.authorization 
-    });
-
-    if (walletError) {
-      console.error("❌ Error obteniendo wallet:", walletError);
+    if (walletError || !wallet) {
       return res.status(402).json({
         success: false,
-        error: "No se pudo verificar tu saldo de créditos. Intenta nuevamente.",
+        error: "No se pudo verificar tu saldo de créditos.",
       });
     }
 
-    if (!wallet) {
-      console.error("❌ Wallet no encontrado para userId:", userId);
-      return res.status(402).json({
-        success: false,
-        error: "No se encontró tu wallet de créditos. Contacta a soporte.",
-      });
-    }
-
-    // Comparar balance numérico correctamente
     const currentBalance = Number(wallet.balance) || 0;
     
     if (currentBalance < generationCost) {
-      console.log("❌ Insufficient credits:", { currentBalance, generationCost });
       return res.status(402).json({
         success: false,
-        error: `Créditos insuficientes. Esta operación requiere ${generationCost} créditos. Tienes ${currentBalance} créditos disponibles.`,
+        error: `Créditos insuficientes. Necesitas ${generationCost} créditos, tienes ${currentBalance}.`,
       });
     }
 
-    console.log("✅ Credits verified:", { 
-      currentBalance, 
-      generationCost, 
-      remaining: currentBalance - generationCost 
-    });
-
-    // 3. Construir contexto del prompt con archivos y mensajes previos
+    // 3. Construir prompt
     const contextStr = context?.files
-      ? `\n\nARCHIVOS ACTUALES DEL PROYECTO:\n${context.files.map(f => `\n--- ${f.path} ---\n${f.content}`).join("\n")}`
+      ? `\n\nARCHIVOS ACTUALES:\n${context.files.map(f => `\n--- ${f.path} ---\n${f.content}`).join("\n")}`
       : "";
 
     const fullPrompt = `${prompt}${contextStr}`;
 
-    // 4. Generar código con el modelo seleccionado
+    // 4. GENERAR CON TODOS LOS MODELOS DISPONIBLES (AUTO-FALLBACK)
     let generatedCode;
     let modelUsed = "";
 
-    // Intentar con Claude primero (más confiable)
-    if ((model === "claude_sonnet" || model === "claude_opus") && anthropic) {
-      try {
-        // MODELOS CLAUDE QUE SÍ EXISTEN (verificado en Anthropic docs)
-        const claudeModel = model === "claude_opus" 
-          ? "claude-3-opus-20240229" 
-          : "claude-3-sonnet-20240229";  // ← CORREGIDO a sonnet (no 3.5)
+    // Lista de TODOS los modelos a intentar (ordenados por preferencia)
+    const CLAUDE_MODELS = [
+      "claude-3-5-sonnet-20241022",
+      "claude-3-5-sonnet-20240620", 
+      "claude-3-sonnet-20240229",
+      "claude-3-opus-20240229",
+      "claude-3-haiku-20240307",
+    ];
 
-        const messages: Anthropic.MessageCreateParams["messages"] = [
-          ...(context?.previousMessages?.map(m => ({
-            role: m.role as "user" | "assistant",
-            content: m.content,
-          })) || []),
-          { role: "user", content: fullPrompt },
-        ];
+    const OPENAI_MODELS = [
+      "gpt-4o-mini",
+      "gpt-4o",
+      "gpt-4-turbo",
+      "gpt-4",
+      "gpt-3.5-turbo",
+      "gpt-3.5-turbo-16k",
+    ];
 
-        console.log("🤖 Usando Claude:", claudeModel);
+    // ESTRATEGIA: Probar primero Claude (mejor calidad), luego OpenAI
+    let lastError: any = null;
 
-        const response = await anthropic.messages.create({
-          model: claudeModel,
-          max_tokens: 4000,
-          system: SYSTEM_PROMPT,
-          messages,
-        });
-
-        const textContent = response.content.find(c => c.type === "text");
-        const rawResponse = textContent?.type === "text" ? textContent.text : "";
-        
-        // Extraer JSON del response (puede venir con markdown)
-        const jsonMatch = rawResponse.match(/```json\n([\s\S]*?)\n```/) || 
-                         rawResponse.match(/\{[\s\S]*"files"[\s\S]*\}/);
-        
-        generatedCode = jsonMatch ? JSON.parse(jsonMatch[1] || jsonMatch[0]) : JSON.parse(rawResponse);
-        modelUsed = model === "claude_opus" ? "Claude 3 Opus" : "Claude 3 Sonnet";
-
-        console.log("✅ Claude respondió exitosamente");
-
-      } catch (claudeError: any) {
-        console.error("❌ Error con Claude:", claudeError);
-        
-        // Mostrar error específico de Claude
-        const claudeErrorMsg = claudeError.error?.error?.message || claudeError.message || "Error desconocido";
-        
-        throw new Error(
-          `❌ Claude falló: ${claudeErrorMsg}\n\n` +
-          `SOLUCIÓN INMEDIATA:\n\n` +
-          `1. 🔑 CREA NUEVA API KEY DE CLAUDE (GRATIS):\n` +
-          `   → Ve a: https://console.anthropic.com/settings/keys\n` +
-          `   → Click "Create Key"\n` +
-          `   → Copia la key completa (sk-ant-...)\n` +
-          `   → Pégala en .env.local: ANTHROPIC_API_KEY=sk-ant-...\n` +
-          `   → Restart Server\n\n` +
-          `2. 💳 VERIFICA CRÉDITOS CLAUDE:\n` +
-          `   → https://console.anthropic.com/settings/plans\n` +
-          `   → Claude da $5 gratis a nuevas cuentas\n\n` +
-          `3. 🔄 O USA OPENAI (SI TIENES CRÉDITOS):\n` +
-          `   → Verifica: https://platform.openai.com/settings/organization/billing\n` +
-          `   → Agrega mínimo $5 USD\n` +
-          `   → Selecciona modelo GPT en el chat\n\n` +
-          `Error técnico: ${JSON.stringify(claudeError.error || claudeError.message)}`
-        );
-      }
-
-    } else {
-      // Usar OpenAI - intentar con modelos en cascada
-      const messages: OpenAI.ChatCompletionMessageParam[] = [
-        { role: "system", content: SYSTEM_PROMPT },
-        ...(context?.previousMessages?.map(m => ({
-          role: m.role as "system" | "user" | "assistant",
-          content: m.content,
-        })) || []),
-        { role: "user", content: fullPrompt },
-      ];
-
-      const modelsToTry = [
-        { name: "gpt-4o", label: "GPT-4o" },
-        { name: "gpt-4o-mini", label: "GPT-4o Mini" },
-        { name: "gpt-4-turbo-preview", label: "GPT-4 Turbo" },
-        { name: "gpt-4", label: "GPT-4" },
-        { name: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
-      ];
-
-      let lastError: any = null;
-      const errorMessages: string[] = [];
-
-      for (const modelToTry of modelsToTry) {
+    // INTENTAR CLAUDE PRIMERO
+    if (anthropic && (model === "claude_sonnet" || model === "claude_opus")) {
+      for (const claudeModel of CLAUDE_MODELS) {
         try {
-          console.log(`🤖 Intentando OpenAI: ${modelToTry.name}`);
+          console.log(`🤖 Probando Claude: ${claudeModel}`);
+
+          const messages: Anthropic.MessageCreateParams["messages"] = [
+            ...(context?.previousMessages?.map(m => ({
+              role: m.role as "user" | "assistant",
+              content: m.content,
+            })) || []),
+            { role: "user", content: fullPrompt },
+          ];
+
+          const response = await anthropic.messages.create({
+            model: claudeModel,
+            max_tokens: 4000,
+            system: SYSTEM_PROMPT,
+            messages,
+          });
+
+          const textContent = response.content.find(c => c.type === "text");
+          const rawResponse = textContent?.type === "text" ? textContent.text : "";
+          
+          const jsonMatch = rawResponse.match(/```json\n([\s\S]*?)\n```/) || 
+                           rawResponse.match(/\{[\s\S]*"files"[\s\S]*\}/);
+          
+          generatedCode = jsonMatch ? JSON.parse(jsonMatch[1] || jsonMatch[0]) : JSON.parse(rawResponse);
+          modelUsed = `Claude (${claudeModel})`;
+          
+          console.log(`✅ ${claudeModel} funcionó!`);
+          break; // Salir si funcionó
+
+        } catch (error: any) {
+          console.log(`❌ ${claudeModel} falló:`, error.status, error.message);
+          lastError = error;
+          continue; // Probar siguiente modelo
+        }
+      }
+    }
+
+    // SI CLAUDE FALLÓ, INTENTAR OPENAI
+    if (!generatedCode && openai) {
+      for (const openaiModel of OPENAI_MODELS) {
+        try {
+          console.log(`🤖 Probando OpenAI: ${openaiModel}`);
+
+          const messages: OpenAI.ChatCompletionMessageParam[] = [
+            { role: "system", content: SYSTEM_PROMPT },
+            ...(context?.previousMessages?.map(m => ({
+              role: m.role as "system" | "user" | "assistant",
+              content: m.content,
+            })) || []),
+            { role: "user", content: fullPrompt },
+          ];
 
           const completion = await openai.chat.completions.create({
-            model: modelToTry.name,
+            model: openaiModel,
             messages,
             temperature: 0.7,
             max_tokens: 4000,
           });
 
           generatedCode = JSON.parse(completion.choices[0].message.content || "{}");
-          modelUsed = modelToTry.label;
-          console.log(`✅ ${modelToTry.label} respondió exitosamente`);
-          break;
+          modelUsed = `OpenAI (${openaiModel})`;
+          
+          console.log(`✅ ${openaiModel} funcionó!`);
+          break; // Salir si funcionó
 
         } catch (error: any) {
-          const errorMsg = `${modelToTry.name}: ${error.status || 'Error'} - ${error.message}`;
-          console.log(`❌ ${errorMsg}`);
-          errorMessages.push(errorMsg);
+          console.log(`❌ ${openaiModel} falló:`, error.status, error.message);
           lastError = error;
-          continue;
+          continue; // Probar siguiente modelo
         }
       }
+    }
 
-      if (!generatedCode) {
-        throw new Error(
-          `❌ NINGÚN MODELO DE IA ESTÁ DISPONIBLE\n\n` +
-          `Errores encontrados:\n${errorMessages.join('\n')}\n\n` +
-          `🔧 SOLUCIÓN RÁPIDA - ELIGE UNA OPCIÓN:\n\n` +
-          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-          `OPCIÓN A: USAR CLAUDE (RECOMENDADO) 🌟\n` +
-          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-          `1. Ve a: https://console.anthropic.com/\n` +
-          `2. Regístrate (si no tienes cuenta)\n` +
-          `3. Click "Get API Keys"\n` +
-          `4. Click "Create Key"\n` +
-          `5. Copia la key completa (sk-ant-...)\n` +
-          `6. En .env.local pon: ANTHROPIC_API_KEY=sk-ant-...\n` +
-          `7. Guarda (Ctrl+S)\n` +
-          `8. Restart Server\n` +
-          `9. ¡Listo! Claude da $5 gratis\n\n` +
-          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-          `OPCIÓN B: ARREGLAR OPENAI 💰\n` +
-          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-          `1. Ve a: https://platform.openai.com/settings/organization/billing\n` +
-          `2. Click "Add payment method"\n` +
-          `3. Agrega tarjeta de crédito\n` +
-          `4. Click "Add credits" → Mínimo $5\n` +
-          `5. Espera 5 minutos\n` +
-          `6. Restart Server\n` +
-          `7. Selecciona modelo GPT en el chat\n\n` +
-          `TU PROBLEMA:\n` +
-          `- OpenAI API key sin acceso a modelos de chat (403)\n` +
-          `- Necesitas agregar método de pago y créditos\n` +
-          `- O crear cuenta de Claude (gratis con $5)\n\n` +
-          `¿Cuál opción prefieres? Responde y te guío paso a paso.`
-        );
+    // SI NINGUNO FUNCIONÓ
+    if (!generatedCode) {
+      throw new Error(
+        `❌ NINGÚN MODELO DE IA DISPONIBLE\n\n` +
+        `Último error: ${lastError?.message || "Desconocido"}\n\n` +
+        `SOLUCIÓN:\n` +
+        `1. Verifica que tus API keys tengan créditos\n` +
+        `2. Claude: https://console.anthropic.com/settings/plans\n` +
+        `3. OpenAI: https://platform.openai.com/settings/organization/billing\n` +
+        `4. Reinicia el servidor después de agregar créditos`
+      );
+    }
+
+    // 5. Guardar archivos en Supabase
+    for (const file of generatedCode.files || []) {
+      const { error: fileError } = await supabase.from("project_files").upsert(
+        {
+          project_id: projectId,
+          path: file.path,
+          content: file.content,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "project_id,path",
+        }
+      );
+
+      if (fileError) {
+        console.error("Error guardando archivo:", fileError);
       }
     }
 
-    // 5. Validar estructura del response
-    if (!generatedCode.files || !Array.isArray(generatedCode.files)) {
-      throw new Error("Invalid AI response format");
+    // 6. Descontar créditos
+    const { error: deductError } = await supabase.rpc("deduct_credits", {
+      p_user_id: userId,
+      p_amount: generationCost,
+      p_description: `Generación con ${modelUsed}`,
+    });
+
+    if (deductError) {
+      console.error("Error descontando créditos:", deductError);
     }
 
-    // 6. Descontar créditos usando el cliente autenticado
-    const { error: transactionError } = await supabase.from("credit_transactions").insert({
-      wallet_id: wallet.id,
-      user_id: userId,
-      amount: -generationCost,
-      type: "usage",
-      description: `AI generation (${modelUsed}): ${prompt.substring(0, 50)}...`,
-      metadata: { 
-        projectId, 
-        model: modelUsed,
-        prompt: prompt.substring(0, 200),
-        filesGenerated: generatedCode.files.length,
+    // 7. Guardar mensaje en conversación
+    await supabase.from("conversation_messages").insert([
+      {
+        project_id: projectId,
+        role: "user",
+        content: prompt,
+      },
+      {
+        project_id: projectId,
+        role: "assistant",
+        content: generatedCode.message || "Código generado exitosamente",
+        metadata: {
+          model: modelUsed,
+          creditsUsed: generationCost,
+          filesGenerated: generatedCode.files?.length || 0,
+        },
+      },
+    ]);
+
+    // 8. Respuesta exitosa
+    return res.status(200).json({
+      success: true,
+      data: {
+        message: generatedCode.message || "Código generado exitosamente",
+        files: generatedCode.files || [],
+        creditsUsed: generationCost,
+        modelUsed,
       },
     });
 
-    if (transactionError) {
-      console.error("⚠️ Error registrando transacción:", transactionError);
-      // No bloqueamos la generación si falla el registro, solo logueamos
-    }
-
-    // 7. Crear nueva versión del proyecto
-    const { data: version } = await supabase
-      .from("project_versions")
-      .insert({
-        project_id: projectId,
-        version_number: Date.now(),
-        name: `AI Generation - ${new Date().toLocaleString()}`,
-        metadata: { 
-          prompt,
-          model: modelUsed,
-          creditsUsed: generationCost,
-        },
-      })
-      .select()
-      .single();
-
-    // 8. Guardar archivos generados
-    if (version) {
-      for (const file of generatedCode.files) {
-        if (file.action === "delete") {
-          await supabase
-            .from("project_files")
-            .delete()
-            .eq("project_id", projectId)
-            .eq("file_path", file.path);
-        } else {
-          await supabase.from("project_files").insert({
-            project_id: projectId,
-            version_id: version.id,
-            file_path: file.path,
-            file_name: file.path.split("/").pop() || "",
-            content: file.content,
-            file_type: file.path.endsWith(".tsx") || file.path.endsWith(".ts") 
-              ? "typescript" 
-              : file.path.endsWith(".css") 
-              ? "css" 
-              : "javascript",
-          });
-        }
-      }
-    }
-
-    return res.status(200).json({
-      success: true,
-      code: generatedCode,
-      creditsUsed: generationCost,
-      modelUsed,
-    });
-
   } catch (error: any) {
-    console.error("❌ Error in /api/ai/generate:", error);
+    console.error("❌ Error en generación:", error);
     
-    // Errores específicos de OpenAI
-    if (error.status === 401 || error.status === 403) {
-      return res.status(500).json({
-        success: false,
-        error: `Error de autenticación con OpenAI:\n\n` +
-               `1. Verifica tu API key en .env.local\n` +
-               `2. Agrega créditos en: https://platform.openai.com/settings/organization/billing\n` +
-               `3. Verifica acceso a modelos en: https://platform.openai.com/settings/organization/limits\n\n` +
-               `Error técnico: ${error.message}`,
-      });
-    }
-
-    if (error.status === 429) {
-      return res.status(429).json({
-        success: false,
-        error: "Rate limit excedido. Intenta nuevamente en unos minutos.",
-      });
-    }
-
     return res.status(500).json({
       success: false,
-      error: error.message || "Error interno del servidor durante la generación de código",
+      error: error.message || "Error generando código",
     });
   }
 }
