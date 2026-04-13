@@ -73,7 +73,8 @@ export default async function handler(
       .eq("key", "generation_cost")
       .single();
 
-    const generationCost = settings?.value?.cost || 10;
+    const settingsValue = settings?.value as Record<string, any> | null;
+    const generationCost = settingsValue?.cost || 10;
 
     if (!wallet || wallet.balance < generationCost) {
       return res.status(402).json({
@@ -160,14 +161,26 @@ export function GeneratedComponent() {
     }
 
     // 4. Guardar archivos generados en la base de datos
-    for (const file of generatedCode.files) {
-      await supabase.from("project_files").upsert({
+    const { data: version } = await supabase
+      .from("project_versions")
+      .insert({
         project_id: projectId,
-        file_path: file.path,
-        file_name: file.path.split("/").pop() || "",
-        content: file.content,
-        file_type: file.path.endsWith(".tsx") || file.path.endsWith(".ts") ? "typescript" : "javascript",
-      });
+        prompt: prompt,
+      })
+      .select()
+      .single();
+
+    if (version) {
+      for (const file of generatedCode.files) {
+        await supabase.from("project_files").insert({
+          project_id: projectId,
+          version_id: version.id,
+          file_path: file.path,
+          file_name: file.path.split("/").pop() || "",
+          content: file.content,
+          file_type: file.path.endsWith(".tsx") || file.path.endsWith(".ts") ? "typescript" : "javascript",
+        });
+      }
     }
 
     return res.status(200).json({

@@ -105,12 +105,14 @@ export default async function handler(
     */
 
     // MOCK RESPONSE
-    const deploymentUrl = `https://${project.name.toLowerCase().replace(/\s+/g, "-")}-mock.vercel.app`;
+    const deploymentUrl = `https://${(project.name || "app").toLowerCase().replace(/\s+/g, "-")}-mock.vercel.app`;
 
-    // Actualizar proyecto con URL de deployment
+    // Actualizar proyecto con URL de deployment (guardado en metadata)
+    const currentMetadata = (project.metadata as Record<string, any>) || {};
+    
     await supabase
       .from("projects")
-      .update({ deployment_url: deploymentUrl })
+      .update({ metadata: { ...currentMetadata, deployment_url: deploymentUrl } })
       .eq("id", projectId);
 
     return res.status(200).json({
