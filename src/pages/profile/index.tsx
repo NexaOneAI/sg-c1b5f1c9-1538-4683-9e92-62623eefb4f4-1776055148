@@ -44,7 +44,9 @@ import {
   TrendingUp,
   TrendingDown,
   Sparkles,
-  Key
+  Key,
+  Zap,
+  Star
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -242,8 +244,11 @@ function ProfileContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="min-h-screen flex items-center justify-center bg-background cyber-background">
+        <div className="text-center space-y-4">
+          <div className="cyber-spinner w-16 h-16 mx-auto" />
+          <p className="text-muted-foreground">Cargando perfil...</p>
+        </div>
       </div>
     );
   }
@@ -256,9 +261,9 @@ function ProfileContent() {
     .slice(0, 2) || profile?.email?.slice(0, 2).toUpperCase() || "U";
 
   const planBadgeColor = {
-    free: "bg-gray-500/20 text-gray-300",
-    pro: "bg-blue-500/20 text-blue-300",
-    premium: "bg-purple-500/20 text-purple-300"
+    free: "bg-gray-500/20 text-gray-300 border-gray-500/30",
+    pro: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+    premium: "bg-purple-500/20 text-purple-300 border-purple-500/30"
   }[subscription?.plan_type || "free"];
 
   const planLimits = {
@@ -268,12 +273,19 @@ function ProfileContent() {
   }[subscription?.plan_type || "free"];
 
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="border-b border-border/50 backdrop-blur-sm bg-background/80 sticky top-0 z-50">
+    <div className="min-h-screen bg-background cyber-background relative overflow-hidden">
+      {/* Animated Grid */}
+      <div className="fixed inset-0 cyber-grid bg-grid opacity-10 pointer-events-none" />
+      
+      {/* Gradient Orbs */}
+      <div className="fixed top-0 left-0 w-[400px] h-[400px] bg-primary/10 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+      <div className="fixed bottom-0 right-0 w-[500px] h-[500px] bg-accent/10 rounded-full blur-[100px] translate-x-1/2 translate-y-1/2 animate-pulse" style={{ animationDelay: "1s" }} />
+
+      <nav className="border-b border-border/50 backdrop-blur-xl bg-background/60 sticky top-0 z-50 shadow-lg">
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" asChild>
+              <Button variant="ghost" size="icon" asChild className="hover:bg-primary/10">
                 <Link href="/dashboard">
                   <ArrowLeft className="h-4 w-4" />
                 </Link>
@@ -282,6 +294,7 @@ function ProfileContent() {
             </div>
             <div className="flex items-center gap-2">
               <Badge className="cyber-gradient">
+                <Sparkles className="w-3 h-3 mr-1" />
                 {credits.toLocaleString()} créditos
               </Badge>
               {profile?.role === "superadmin" && (
@@ -295,22 +308,22 @@ function ProfileContent() {
         </div>
       </nav>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2 neon-text-primary font-['Orbitron']">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+        <div className="mb-8 animate-fade-in">
+          <h1 className="text-4xl sm:text-5xl font-bold mb-2 neon-text-primary font-display">
             Mi Perfil
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground text-lg">
             Gestiona tu información personal y configuración de cuenta
           </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <Card className="glass-panel border-border/50">
+            <Card className="glass-panel border-border/50 hover:border-primary/30 transition-all duration-300 animate-slide-in">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="w-5 h-5 text-primary" />
+                <CardTitle className="flex items-center gap-2 text-2xl font-display">
+                  <User className="w-6 h-6 text-primary" />
                   Información Personal
                 </CardTitle>
                 <CardDescription>
@@ -319,9 +332,9 @@ function ProfileContent() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex items-center gap-6">
-                  <Avatar className="h-24 w-24 border-2 border-primary/50 neon-glow">
+                  <Avatar className="h-24 w-24 border-2 border-primary/50 neon-glow hover:scale-105 transition-transform">
                     <AvatarImage src={formData.avatar_url} alt={formData.full_name} />
-                    <AvatarFallback className="text-2xl bg-primary/20 text-primary">
+                    <AvatarFallback className="text-2xl bg-primary/20 text-primary font-bold">
                       {initials}
                     </AvatarFallback>
                   </Avatar>
@@ -332,6 +345,7 @@ function ProfileContent() {
                       value={formData.avatar_url}
                       onChange={(e) => setFormData({ ...formData, avatar_url: e.target.value })}
                       placeholder="https://ejemplo.com/avatar.jpg"
+                      className="glass-panel border-border/50 focus:border-primary/50"
                     />
                     <p className="text-xs text-muted-foreground">
                       Pega la URL de tu foto de perfil
@@ -339,7 +353,7 @@ function ProfileContent() {
                   </div>
                 </div>
 
-                <Separator />
+                <Separator className="bg-border/50" />
 
                 <div className="grid gap-4">
                   <div className="space-y-2">
@@ -349,6 +363,7 @@ function ProfileContent() {
                       value={formData.full_name}
                       onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                       placeholder="Tu nombre completo"
+                      className="glass-panel border-border/50 focus:border-primary/50"
                     />
                   </div>
 
@@ -359,7 +374,7 @@ function ProfileContent() {
                       type="email"
                       value={profile?.email || ""}
                       disabled
-                      className="bg-muted/50"
+                      className="bg-muted/30 border-border/30"
                     />
                     <p className="text-xs text-muted-foreground">
                       El email no puede ser modificado por seguridad
@@ -369,7 +384,7 @@ function ProfileContent() {
                   <div className="space-y-2">
                     <Label>Rol</Label>
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="capitalize">
+                      <Badge variant="outline" className="capitalize border-primary/30">
                         {profile?.role || "user"}
                       </Badge>
                       <span className="text-sm text-muted-foreground">
@@ -383,7 +398,7 @@ function ProfileContent() {
                   <Button
                     onClick={handleSaveProfile}
                     disabled={saving}
-                    className="cyber-gradient"
+                    className="cyber-gradient shadow-glow"
                   >
                     {saving ? (
                       <>
@@ -401,10 +416,10 @@ function ProfileContent() {
               </CardContent>
             </Card>
 
-            <Card className="glass-panel border-border/50">
+            <Card className="glass-panel border-border/50 hover:border-accent/30 transition-all duration-300 animate-slide-in" style={{ animationDelay: "0.1s" }}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <History className="w-5 h-5 text-primary" />
+                <CardTitle className="flex items-center gap-2 text-2xl font-display">
+                  <History className="w-6 h-6 text-accent" />
                   Historial de Créditos
                 </CardTitle>
                 <CardDescription>
@@ -413,96 +428,107 @@ function ProfileContent() {
               </CardHeader>
               <CardContent>
                 {transactions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    No hay transacciones registradas
-                  </p>
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-accent/10 flex items-center justify-center">
+                      <History className="h-8 w-8 text-accent" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      No hay transacciones registradas
+                    </p>
+                  </div>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Fecha</TableHead>
-                        <TableHead>Descripción</TableHead>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead className="text-right">Cantidad</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {transactions.map((tx) => (
-                        <TableRow key={tx.id}>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {new Date(tx.created_at).toLocaleDateString("es-ES", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric"
-                            })}
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            {tx.description || "Sin descripción"}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant="outline"
-                              className={
-                                tx.type === "bonus" || tx.type === "admin_adjustment" && tx.amount > 0
-                                  ? "border-green-500/50 text-green-500"
-                                  : tx.type === "usage"
-                                  ? "border-red-500/50 text-red-500"
-                                  : "border-blue-500/50 text-blue-500"
-                              }
-                            >
-                              {tx.type === "bonus" ? <Sparkles className="w-3 h-3 mr-1" /> :
-                               tx.type === "usage" ? <TrendingDown className="w-3 h-3 mr-1" /> :
-                               <TrendingUp className="w-3 h-3 mr-1" />}
-                              {tx.type === "admin_adjustment" ? "Ajuste" : 
-                               tx.type === "bonus" ? "Bonus" :
-                               tx.type === "purchase" ? "Compra" : "Uso"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right font-mono font-bold">
-                            <span className={tx.amount > 0 ? "text-green-500" : "text-red-500"}>
-                              {tx.amount > 0 ? "+" : ""}{tx.amount}
-                            </span>
-                          </TableCell>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-border/50">
+                          <TableHead>Fecha</TableHead>
+                          <TableHead>Descripción</TableHead>
+                          <TableHead>Tipo</TableHead>
+                          <TableHead className="text-right">Cantidad</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {transactions.map((tx) => (
+                          <TableRow key={tx.id} className="border-border/30 hover:bg-primary/5 transition-colors">
+                            <TableCell className="text-xs text-muted-foreground font-mono">
+                              {new Date(tx.created_at).toLocaleDateString("es-ES", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric"
+                              })}
+                            </TableCell>
+                            <TableCell className="text-sm max-w-xs truncate">
+                              {tx.description || "Sin descripción"}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={
+                                  tx.type === "bonus" || (tx.type === "admin_adjustment" && tx.amount > 0)
+                                    ? "border-green-500/50 text-green-400 bg-green-500/10"
+                                    : tx.type === "usage"
+                                    ? "border-red-500/50 text-red-400 bg-red-500/10"
+                                    : "border-blue-500/50 text-blue-400 bg-blue-500/10"
+                                }
+                              >
+                                {tx.type === "bonus" ? <Sparkles className="w-3 h-3 mr-1" /> :
+                                 tx.type === "usage" ? <TrendingDown className="w-3 h-3 mr-1" /> :
+                                 <TrendingUp className="w-3 h-3 mr-1" />}
+                                {tx.type === "admin_adjustment" ? "Ajuste" : 
+                                 tx.type === "bonus" ? "Bonus" :
+                                 tx.type === "purchase" ? "Compra" : "Uso"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-bold">
+                              <span className={tx.amount > 0 ? "text-green-400" : "text-red-400"}>
+                                {tx.amount > 0 ? "+" : ""}{tx.amount}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
           </div>
 
           <div className="space-y-6">
-            <Card className="glass-panel border-primary/50 shadow-lg shadow-primary/20">
+            <Card className="glass-panel border-primary/50 shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all duration-300 animate-scale-in">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-xl font-display">
                   <CreditCard className="w-5 h-5 text-primary" />
                   Plan y Créditos
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="text-center p-6 rounded-lg bg-primary/10 border border-primary/20">
-                  <p className="text-sm text-muted-foreground mb-2">Créditos Disponibles</p>
-                  <p className="text-5xl font-bold neon-text-primary font-['Orbitron']">
+                <div className="text-center p-6 rounded-lg bg-gradient-to-br from-primary/10 to-accent/10 border border-primary/20 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-accent/5 animate-gradient-xy" />
+                  <p className="text-sm text-muted-foreground mb-2 relative z-10">Créditos Disponibles</p>
+                  <p className="text-5xl sm:text-6xl font-bold neon-text-primary font-display relative z-10">
                     {credits.toLocaleString()}
                   </p>
                   {subscription?.plan_type !== "premium" && (
-                    <p className="text-xs text-muted-foreground mt-2">
+                    <p className="text-xs text-muted-foreground mt-2 relative z-10">
                       de {planLimits.credits} mensuales
                     </p>
                   )}
+                  <Sparkles className="absolute top-2 right-2 w-4 h-4 text-primary/40 animate-pulse" />
+                  <Zap className="absolute bottom-2 left-2 w-4 h-4 text-accent/40 animate-pulse" style={{ animationDelay: "0.5s" }} />
                 </div>
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Plan Actual</span>
                     <Badge className={planBadgeColor}>
+                      <Star className="w-3 h-3 mr-1" />
                       {(subscription?.plan_type || "free").toUpperCase()}
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Proyectos</span>
-                    <span className="font-mono">
+                    <span className="font-mono font-bold">
                       {projectCount} / {planLimits.projects}
                     </span>
                   </div>
@@ -515,9 +541,9 @@ function ProfileContent() {
                 </div>
 
                 {subscription?.plan_type === "free" && (
-                  <Button className="w-full cyber-gradient" asChild>
+                  <Button className="w-full cyber-gradient shadow-glow group" asChild>
                     <Link href="/pricing">
-                      <TrendingUp className="w-4 h-4 mr-2" />
+                      <TrendingUp className="w-4 h-4 mr-2 group-hover:translate-y-[-2px] transition-transform" />
                       Mejorar Plan
                     </Link>
                   </Button>
@@ -525,24 +551,24 @@ function ProfileContent() {
               </CardContent>
             </Card>
 
-            <Card className="glass-panel border-border/50">
+            <Card className="glass-panel border-border/50 hover:border-accent/30 transition-all duration-300 animate-scale-in" style={{ animationDelay: "0.1s" }}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-primary" />
+                <CardTitle className="flex items-center gap-2 text-xl font-display">
+                  <Shield className="w-5 h-5 text-accent" />
                   Seguridad
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
                   <DialogTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start">
+                    <Button variant="outline" className="w-full justify-start hover:bg-primary/10 border-border/50">
                       <Key className="w-4 h-4 mr-2" />
                       Cambiar Contraseña
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="glass-panel border-border/50">
                     <DialogHeader>
-                      <DialogTitle>Cambiar Contraseña</DialogTitle>
+                      <DialogTitle className="font-display">Cambiar Contraseña</DialogTitle>
                       <DialogDescription>
                         Ingresa tu nueva contraseña. Debe tener al menos 6 caracteres.
                       </DialogDescription>
@@ -556,6 +582,7 @@ function ProfileContent() {
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
                           placeholder="Mínimo 6 caracteres"
+                          className="glass-panel border-border/50"
                         />
                       </div>
                       <div className="space-y-2">
@@ -566,6 +593,7 @@ function ProfileContent() {
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
                           placeholder="Repite la contraseña"
+                          className="glass-panel border-border/50"
                         />
                       </div>
                     </div>
@@ -582,7 +610,7 @@ function ProfileContent() {
 
                 <Button
                   variant="outline"
-                  className="w-full justify-start"
+                  className="w-full justify-start hover:bg-red-500/10 border-border/50"
                   onClick={handleSignOut}
                 >
                   <LogOut className="w-4 h-4 mr-2" />
@@ -591,9 +619,9 @@ function ProfileContent() {
               </CardContent>
             </Card>
 
-            <Card className="glass-panel border-red-500/30 bg-red-500/5">
+            <Card className="glass-panel border-red-500/30 bg-red-500/5 hover:border-red-500/50 transition-all duration-300 animate-scale-in" style={{ animationDelay: "0.2s" }}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-red-500">
+                <CardTitle className="flex items-center gap-2 text-red-400 font-display">
                   <AlertTriangle className="w-5 h-5" />
                   Zona de Peligro
                 </CardTitle>
@@ -608,7 +636,7 @@ function ProfileContent() {
                   </DialogTrigger>
                   <DialogContent className="glass-panel border-red-500/50">
                     <DialogHeader>
-                      <DialogTitle className="text-red-500">
+                      <DialogTitle className="text-red-400 font-display">
                         ⚠️ Eliminar Cuenta Permanentemente
                       </DialogTitle>
                       <DialogDescription>
@@ -617,21 +645,33 @@ function ProfileContent() {
                     </DialogHeader>
                     <div className="py-4">
                       <ul className="space-y-2 text-sm text-muted-foreground">
-                        <li>• Todos tus proyectos y archivos</li>
-                        <li>• Tu historial de créditos</li>
-                        <li>• Toda tu información personal</li>
-                        <li>• Acceso a tu cuenta de Nexa One</li>
+                        <li className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                          Todos tus proyectos y archivos
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                          Tu historial de créditos
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                          Toda tu información personal
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                          Acceso a tu cuenta de Nexa One
+                        </li>
                       </ul>
                       <div className="mt-6 space-y-2">
                         <Label htmlFor="delete-confirm">
-                          Escribe <strong>ELIMINAR</strong> para confirmar
+                          Escribe <strong className="text-red-400">ELIMINAR</strong> para confirmar
                         </Label>
                         <Input
                           id="delete-confirm"
                           value={deleteConfirm}
                           onChange={(e) => setDeleteConfirm(e.target.value)}
                           placeholder="ELIMINAR"
-                          className="font-mono"
+                          className="font-mono glass-panel border-border/50"
                         />
                       </div>
                     </div>
