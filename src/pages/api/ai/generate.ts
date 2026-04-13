@@ -206,10 +206,10 @@ export default async function handler(
     // Intentar con Claude primero (más confiable)
     if ((model === "claude_sonnet" || model === "claude_opus") && anthropic) {
       try {
-        // CORRECCIÓN: Usar nombres de modelos CORRECTOS de Anthropic
+        // MODELOS CLAUDE QUE SÍ EXISTEN (verificado en Anthropic docs)
         const claudeModel = model === "claude_opus" 
           ? "claude-3-opus-20240229" 
-          : "claude-3-5-sonnet-20240620";  // ← CORREGIDO (era 20241022)
+          : "claude-3-sonnet-20240229";  // ← CORREGIDO a sonnet (no 3.5)
 
         const messages: Anthropic.MessageCreateParams["messages"] = [
           ...(context?.previousMessages?.map(m => ({
@@ -236,68 +236,38 @@ export default async function handler(
                          rawResponse.match(/\{[\s\S]*"files"[\s\S]*\}/);
         
         generatedCode = jsonMatch ? JSON.parse(jsonMatch[1] || jsonMatch[0]) : JSON.parse(rawResponse);
-        modelUsed = model === "claude_opus" ? "Claude 3 Opus" : "Claude 3.5 Sonnet";
+        modelUsed = model === "claude_opus" ? "Claude 3 Opus" : "Claude 3 Sonnet";
 
         console.log("✅ Claude respondió exitosamente");
 
       } catch (claudeError: any) {
-        console.error("❌ Error con Claude:", claudeError.message);
+        console.error("❌ Error con Claude:", claudeError);
         
-        // Si Claude falla, intentar con OpenAI como fallback usando modelo más básico
-        if (openai) {
-          console.log("⚠️ Intentando fallback a OpenAI GPT-4...");
-          try {
-            // Intentar con gpt-4 (más disponible que gpt-3.5-turbo en algunas cuentas)
-            const completion = await openai.chat.completions.create({
-              model: "gpt-4",
-              messages: [
-                { role: "system", content: SYSTEM_PROMPT },
-                ...(context?.previousMessages?.map(m => ({
-                  role: m.role as "system" | "user" | "assistant",
-                  content: m.content,
-                })) || []),
-                { role: "user", content: fullPrompt },
-              ],
-              temperature: 0.7,
-              max_tokens: 4000,
-            });
-
-            generatedCode = JSON.parse(completion.choices[0].message.content || "{}");
-            modelUsed = "GPT-4 (fallback desde Claude)";
-          } catch (gpt4Error: any) {
-            // Si GPT-4 tampoco funciona, intentar con text-davinci-003
-            console.log("⚠️ GPT-4 falló, intentando con modelo base...");
-            try {
-              const completion = await openai.chat.completions.create({
-                model: "gpt-3.5-turbo-instruct",
-                messages: [
-                  { role: "system", content: SYSTEM_PROMPT },
-                  { role: "user", content: fullPrompt },
-                ],
-                temperature: 0.7,
-                max_tokens: 4000,
-              });
-
-              generatedCode = JSON.parse(completion.choices[0].message.content || "{}");
-              modelUsed = "GPT-3.5 Turbo Instruct (fallback)";
-            } catch (fallbackError) {
-              throw new Error(
-                `Todos los modelos fallaron:\n\n` +
-                `Claude: ${claudeError.message}\n` +
-                `GPT-4: ${gpt4Error.message}\n` +
-                `GPT-3.5 Instruct: ${fallbackError instanceof Error ? fallbackError.message : 'Error'}\n\n` +
-                `Tu API key de OpenAI no tiene acceso a ningún modelo de chat.\n` +
-                `Verifica en: https://platform.openai.com/settings/organization/limits`
-              );
-            }
-          }
-        } else {
-          throw claudeError;
-        }
+        // Mostrar error específico de Claude
+        const claudeErrorMsg = claudeError.error?.error?.message || claudeError.message || "Error desconocido";
+        
+        throw new Error(
+          `❌ Claude falló: ${claudeErrorMsg}\n\n` +
+          `SOLUCIÓN INMEDIATA:\n\n` +
+          `1. 🔑 CREA NUEVA API KEY DE CLAUDE (GRATIS):\n` +
+          `   → Ve a: https://console.anthropic.com/settings/keys\n` +
+          `   → Click "Create Key"\n` +
+          `   → Copia la key completa (sk-ant-...)\n` +
+          `   → Pégala en .env.local: ANTHROPIC_API_KEY=sk-ant-...\n` +
+          `   → Restart Server\n\n` +
+          `2. 💳 VERIFICA CRÉDITOS CLAUDE:\n` +
+          `   → https://console.anthropic.com/settings/plans\n` +
+          `   → Claude da $5 gratis a nuevas cuentas\n\n` +
+          `3. 🔄 O USA OPENAI (SI TIENES CRÉDITOS):\n` +
+          `   → Verifica: https://platform.openai.com/settings/organization/billing\n` +
+          `   → Agrega mínimo $5 USD\n` +
+          `   → Selecciona modelo GPT en el chat\n\n` +
+          `Error técnico: ${JSON.stringify(claudeError.error || claudeError.message)}`
+        );
       }
 
     } else {
-      // Usar OpenAI - intentar con modelos en cascada hasta encontrar uno que funcione
+      // Usar OpenAI - intentar con modelos en cascada
       const messages: OpenAI.ChatCompletionMessageParam[] = [
         { role: "system", content: SYSTEM_PROMPT },
         ...(context?.previousMessages?.map(m => ({
@@ -310,13 +280,13 @@ export default async function handler(
       const modelsToTry = [
         { name: "gpt-4o", label: "GPT-4o" },
         { name: "gpt-4o-mini", label: "GPT-4o Mini" },
+        { name: "gpt-4-turbo-preview", label: "GPT-4 Turbo" },
         { name: "gpt-4", label: "GPT-4" },
-        { name: "gpt-4-turbo", label: "GPT-4 Turbo" },
         { name: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
-        { name: "gpt-3.5-turbo-16k", label: "GPT-3.5 Turbo 16K" },
       ];
 
       let lastError: any = null;
+      const errorMessages: string[] = [];
 
       for (const modelToTry of modelsToTry) {
         try {
@@ -327,62 +297,55 @@ export default async function handler(
             messages,
             temperature: 0.7,
             max_tokens: 4000,
-            response_format: modelToTry.name.includes("gpt-4o") || modelToTry.name.includes("gpt-3.5") 
-              ? { type: "json_object" } 
-              : undefined,
           });
 
           generatedCode = JSON.parse(completion.choices[0].message.content || "{}");
           modelUsed = modelToTry.label;
           console.log(`✅ ${modelToTry.label} respondió exitosamente`);
-          break; // Salir del loop si funcionó
+          break;
 
         } catch (error: any) {
-          console.log(`❌ ${modelToTry.name} falló:`, error.status || error.message);
+          const errorMsg = `${modelToTry.name}: ${error.status || 'Error'} - ${error.message}`;
+          console.log(`❌ ${errorMsg}`);
+          errorMessages.push(errorMsg);
           lastError = error;
-          continue; // Intentar siguiente modelo
+          continue;
         }
       }
 
-      // Si ningún modelo de OpenAI funcionó, intentar con Claude como último recurso
-      if (!generatedCode && anthropic) {
-        console.log("⚠️ Todos los modelos de OpenAI fallaron, intentando Claude...");
-        
-        try {
-          const response = await anthropic.messages.create({
-            model: "claude-3-5-sonnet-20240620",
-            max_tokens: 4000,
-            system: SYSTEM_PROMPT,
-            messages: [
-              ...(context?.previousMessages?.map(m => ({
-                role: m.role as "user" | "assistant",
-                content: m.content,
-              })) || []),
-              { role: "user", content: fullPrompt },
-            ],
-          });
-
-          const textContent = response.content.find(c => c.type === "text");
-          const rawResponse = textContent?.type === "text" ? textContent.text : "";
-          const jsonMatch = rawResponse.match(/```json\n([\s\S]*?)\n```/) || 
-                           rawResponse.match(/\{[\s\S]*"files"[\s\S]*\}/);
-          
-          generatedCode = jsonMatch ? JSON.parse(jsonMatch[1] || jsonMatch[0]) : JSON.parse(rawResponse);
-          modelUsed = "Claude 3.5 Sonnet (fallback desde OpenAI)";
-
-        } catch (claudeError: any) {
-          throw new Error(
-            `Ningún modelo de IA está disponible:\n\n` +
-            `Último error OpenAI: ${lastError?.message || 'Desconocido'}\n` +
-            `Error Claude: ${claudeError.message}\n\n` +
-            `SOLUCIÓN:\n` +
-            `1. Verifica tu OpenAI API key tenga créditos\n` +
-            `2. Verifica acceso en: https://platform.openai.com/settings/organization/limits\n` +
-            `3. O verifica tu ANTHROPIC_API_KEY en .env.local`
-          );
-        }
-      } else if (!generatedCode) {
-        throw lastError || new Error("No se pudo generar código con ningún modelo");
+      if (!generatedCode) {
+        throw new Error(
+          `❌ NINGÚN MODELO DE IA ESTÁ DISPONIBLE\n\n` +
+          `Errores encontrados:\n${errorMessages.join('\n')}\n\n` +
+          `🔧 SOLUCIÓN RÁPIDA - ELIGE UNA OPCIÓN:\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `OPCIÓN A: USAR CLAUDE (RECOMENDADO) 🌟\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `1. Ve a: https://console.anthropic.com/\n` +
+          `2. Regístrate (si no tienes cuenta)\n` +
+          `3. Click "Get API Keys"\n` +
+          `4. Click "Create Key"\n` +
+          `5. Copia la key completa (sk-ant-...)\n` +
+          `6. En .env.local pon: ANTHROPIC_API_KEY=sk-ant-...\n` +
+          `7. Guarda (Ctrl+S)\n` +
+          `8. Restart Server\n` +
+          `9. ¡Listo! Claude da $5 gratis\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `OPCIÓN B: ARREGLAR OPENAI 💰\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `1. Ve a: https://platform.openai.com/settings/organization/billing\n` +
+          `2. Click "Add payment method"\n` +
+          `3. Agrega tarjeta de crédito\n` +
+          `4. Click "Add credits" → Mínimo $5\n` +
+          `5. Espera 5 minutos\n` +
+          `6. Restart Server\n` +
+          `7. Selecciona modelo GPT en el chat\n\n` +
+          `TU PROBLEMA:\n` +
+          `- OpenAI API key sin acceso a modelos de chat (403)\n` +
+          `- Necesitas agregar método de pago y créditos\n` +
+          `- O crear cuenta de Claude (gratis con $5)\n\n` +
+          `¿Cuál opción prefieres? Responde y te guío paso a paso.`
+        );
       }
     }
 
