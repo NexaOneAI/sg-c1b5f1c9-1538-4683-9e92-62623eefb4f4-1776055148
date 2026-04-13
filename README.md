@@ -161,25 +161,82 @@ WHERE key = 'generation_cost';
 
 ---
 
-## 🤖 Integración con OpenAI
+## 🤖 Sistema Dual de IA (OpenAI + Claude)
+
+Nexa One utiliza un sistema inteligente de dos modelos de IA para diferentes niveles de complejidad:
+
+### Modelos Disponibles
+
+**GPT-4 Turbo** (10 créditos/generación)
+- Generación rápida y eficiente
+- Ideal para cambios simples e iteraciones
+- Respuestas en segundos
+
+**Claude 3.5 Sonnet** (20 créditos/generación)
+- Arquitectura compleja y refactorización
+- Análisis profundo de código
+- Mejor para proyectos estructurados
+
+**Claude 3 Opus** (40 créditos/generación)
+- Máxima calidad y precisión
+- Proyectos grandes y complejos
+- Razonamiento avanzado
 
 ### Setup
-1. Crear cuenta en [OpenAI Platform](https://platform.openai.com/)
-2. Generar API Key en [API Keys](https://platform.openai.com/api-keys)
-3. Agregar en `.env.local`:
+
+**1. Obtener API Keys**
+
+OpenAI:
+- Crear cuenta en [OpenAI Platform](https://platform.openai.com/)
+- Ir a [API Keys](https://platform.openai.com/api-keys)
+- Crear nueva API key
+- Copiar el valor (empieza con `sk-`)
+
+Claude:
+- Crear cuenta en [Anthropic Console](https://console.anthropic.com/)
+- Ir a API Keys
+- Crear nueva API key
+- Copiar el valor (empieza con `sk-ant-`)
+
+**2. Configurar Variables de Entorno**
+
+Editar `.env.local`:
 ```bash
-OPENAI_API_KEY=sk-...
-```
-4. Instalar dependencia:
-```bash
-npm install openai
+OPENAI_API_KEY=sk-proj-...
+ANTHROPIC_API_KEY=sk-ant-api03-...
 ```
 
-### Implementación
-El código está preparado en `/src/pages/api/ai/generate.ts`. Solo debes:
-1. Descomentar la sección de OpenAI
-2. Ajustar el prompt del sistema según tus necesidades
-3. Configurar temperatura y max_tokens
+**3. Instalar Dependencias**
+```bash
+npm install openai @anthropic-ai/sdk
+```
+
+**4. Reiniciar Servidor**
+```bash
+npm run dev
+```
+
+### Uso en el Builder
+
+1. Crear o abrir un proyecto
+2. Seleccionar modelo de IA desde el dropdown
+3. Escribir prompt describiendo lo que quieres crear
+4. El sistema:
+   - Analiza el contexto del proyecto
+   - Genera código limpio y funcional
+   - Guarda archivos automáticamente
+   - Crea nueva versión
+   - Descuenta créditos
+
+### Configuración de Costos (Admin)
+
+Los costos por modelo se configuran en la tabla `admin_settings`:
+
+```sql
+UPDATE admin_settings 
+SET value = '{"gpt4": {"cost": 10}, "claude_sonnet": {"cost": 20}, "claude_opus": {"cost": 40}}'::jsonb 
+WHERE key = 'ai_model_costs';
+```
 
 ---
 
