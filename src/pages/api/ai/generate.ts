@@ -165,7 +165,9 @@ export function GeneratedComponent() {
       .from("project_versions")
       .insert({
         project_id: projectId,
-        prompt: prompt,
+        version_number: Date.now(),
+        name: `Version ${new Date().toISOString().split('T')[0]}`,
+        metadata: { prompt: prompt },
       })
       .select()
       .single();
