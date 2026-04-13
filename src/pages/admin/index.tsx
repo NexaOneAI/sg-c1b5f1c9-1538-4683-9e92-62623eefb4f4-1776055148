@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/Logo";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { 
   Users, 
   Wallet, 
@@ -22,7 +23,8 @@ import {
   XCircle,
   Search,
   Plus,
-  Minus
+  Minus,
+  Shield
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import {
@@ -41,6 +43,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface UserData {
   id: string;
@@ -55,24 +65,57 @@ interface UserData {
 
 export default function AdminPanel() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<"users" | "credits" | "projects" | "payments" | "settings">("users");
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"users" | "credits" | "projects" | "payments" | "settings">("credits");
   const [users, setUsers] = useState<UserData[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState("");
 
-  // Form states para agregar pago manual
-  const [manualPaymentForm, setManualPaymentForm] = useState({
-    userId: "",
-    plan: "pro",
-    amount: "29.99",
-    paymentMethod: "manual",
-    notes: "",
-  });
+  // Estado para ajuste manual de créditos
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [creditAmount, setCreditAmount] = useState("100");
+  const [creditNote, setCreditNote] = useState("");
 
   useEffect(() => {
-    loadData();
-  }, [activeTab]);
+    checkAdminAccess();
+  }, []);
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      loadData();
+    }
+  }, [activeTab, isSuperAdmin]);
+
+  async function checkAdminAccess() {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      router.push("/auth/login");
+      return;
+    }
+
+    setCurrentUserEmail(user.email || "");
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (profile?.role === "superadmin" && user.email === "nexaapporg@gmail.com") {
+      setIsSuperAdmin(true);
+    } else {
+      toast({
+        title: "❌ Acceso Denegado",
+        description: "Solo el superadmin puede acceder a este panel",
+        variant: "destructive",
+      });
+      setTimeout(() => router.push("/dashboard"), 2000);
+    }
+  }
 
   const loadData = async () => {
     setLoading(true);
@@ -147,138 +190,73 @@ export default function AdminPanel() {
     }
   };
 
-  const handleManualPayment = async () => {
-    if (!manualPaymentForm.userId) {
+  async function handleQuickCreditAdjustment(userId: string, amount: number) {
+    const { data: wallet } = await supabase
+      .from("credit_wallets")
+      .select("id")
+      .eq("user_id", userId)
+      .single();
+
+    if (!wallet) {
       toast({
         title: "Error",
-        description: "Selecciona un usuario",
+        description: "No se encontró el wallet del usuario",
         variant: "destructive",
       });
       return;
     }
 
-    try {
-      const planCredits = {
-        free: 100,
-        pro: 1000,
-        premium: 999999,
-      };
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
-      const credits = planCredits[manualPaymentForm.plan as keyof typeof planCredits];
+    const { error } = await supabase.from("credit_transactions").insert({
+      wallet_id: wallet.id,
+      user_id: userId,
+      amount,
+      type: "admin_adjustment",
+      description: `Ajuste manual por superadmin (${amount > 0 ? '+' : ''}${amount} créditos)`,
+      metadata: { admin_id: user.id, admin_email: user.email },
+    });
 
-      // 1. Registrar pago
-      const { data: payment } = await supabase
-        .from("payments")
-        .insert({
-          user_id: manualPaymentForm.userId,
-          amount: parseFloat(manualPaymentForm.amount),
-          currency: "USD",
-          status: "completed",
-          payment_method: manualPaymentForm.paymentMethod,
-          payment_provider: "manual",
-          provider_payment_id: `MANUAL-${Date.now()}`,
-          metadata: {
-            plan_type: manualPaymentForm.plan,
-            notes: manualPaymentForm.notes,
-            registered_by: "admin",
-          },
-        })
-        .select()
-        .single();
-
-      // 2. Crear/actualizar suscripción
-      const startDate = new Date();
-      const endDate = new Date();
-      endDate.setMonth(endDate.getMonth() + 1);
-
-      const { data: existingSub } = await supabase
-        .from("subscriptions")
-        .select("*")
-        .eq("user_id", manualPaymentForm.userId)
-        .single();
-
-      if (existingSub) {
-        await supabase
-          .from("subscriptions")
-          .update({
-            plan_type: manualPaymentForm.plan,
-            status: "active",
-            started_at: startDate.toISOString(),
-            expires_at: endDate.toISOString(),
-            auto_renew: false,
-          })
-          .eq("user_id", manualPaymentForm.userId);
-      } else {
-        await supabase.from("subscriptions").insert({
-          user_id: manualPaymentForm.userId,
-          plan_type: manualPaymentForm.plan,
-          status: "active",
-          started_at: startDate.toISOString(),
-          expires_at: endDate.toISOString(),
-          auto_renew: false,
-        });
-      }
-
-      // 3. Asignar créditos
-      const { data: wallet } = await supabase
-        .from("credit_wallets")
-        .select("id")
-        .eq("user_id", manualPaymentForm.userId)
-        .single();
-
-      if (wallet) {
-        await supabase.from("credit_transactions").insert({
-          wallet_id: wallet.id,
-          user_id: manualPaymentForm.userId,
-          amount: credits,
-          type: "purchase",
-          description: `Plan ${manualPaymentForm.plan.toUpperCase()} - Pago manual`,
-          metadata: {
-            payment_id: payment?.id,
-            plan: manualPaymentForm.plan,
-            notes: manualPaymentForm.notes,
-          },
-        });
-
-        // Actualizar perfil si es premium
-        const isUnlimited = manualPaymentForm.plan === "premium";
-        await supabase
-          .from("profiles")
-          .update({ unlimited_credits: isUnlimited })
-          .eq("id", manualPaymentForm.userId);
-      }
-
-      toast({
-        title: "✅ Pago registrado",
-        description: `Plan ${manualPaymentForm.plan.toUpperCase()} activado con ${credits === 999999 ? "créditos ilimitados" : credits + " créditos"}`,
-      });
-
-      // Reset form
-      setManualPaymentForm({
-        userId: "",
-        plan: "pro",
-        amount: "29.99",
-        paymentMethod: "manual",
-        notes: "",
-      });
-
-      loadPayments();
-      loadUsers();
-    } catch (error: any) {
-      console.error("Error registering payment:", error);
+    if (error) {
       toast({
         title: "Error",
         description: error.message,
         variant: "destructive",
       });
+    } else {
+      toast({
+        title: "✅ Créditos ajustados",
+        description: `${amount > 0 ? '+' : ''}${amount} créditos agregados`,
+      });
+      await loadUsers();
     }
-  };
+  }
 
-  async function handleCreditAdjustment(userId: string, amount: number) {
+  async function handleCustomCreditAdjustment() {
+    if (!selectedUserId || !creditAmount) {
+      toast({
+        title: "Error",
+        description: "Selecciona un usuario y cantidad",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const amount = parseInt(creditAmount);
+    if (isNaN(amount)) {
+      toast({
+        title: "Error",
+        description: "La cantidad debe ser un número",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const { data: wallet } = await supabase
       .from("credit_wallets")
       .select("id")
-      .eq("user_id", userId)
+      .eq("user_id", selectedUserId)
       .single();
 
     if (!wallet) return;
@@ -286,22 +264,63 @@ export default function AdminPanel() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    await supabase.from("credit_transactions").insert({
+    const { error } = await supabase.from("credit_transactions").insert({
       wallet_id: wallet.id,
-      user_id: userId,
+      user_id: selectedUserId,
       amount,
       type: "admin_adjustment",
-      description: `Ajuste manual por admin`,
-      metadata: { admin_id: user.id },
+      description: creditNote || `Ajuste manual por superadmin (${amount > 0 ? '+' : ''}${amount} créditos)`,
+      metadata: { 
+        admin_id: user.id, 
+        admin_email: user.email,
+        note: creditNote 
+      },
     });
 
-    await loadUsers();
+    if (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "✅ Créditos ajustados",
+        description: `${amount > 0 ? '+' : ''}${amount} créditos para ${users.find(u => u.id === selectedUserId)?.email}`,
+      });
+      
+      // Reset form
+      setSelectedUserId("");
+      setCreditAmount("100");
+      setCreditNote("");
+      
+      await loadUsers();
+    }
   }
 
   const filteredUsers = users.filter(user => 
     user.email?.toLowerCase().includes(searchQuery.toLowerCase()) || 
     user.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card className="glass-panel border-border/50 max-w-md">
+          <CardContent className="pt-6 text-center">
+            <Shield className="h-16 w-16 mx-auto mb-4 text-red-500" />
+            <h2 className="text-2xl font-bold mb-2">Acceso Denegado</h2>
+            <p className="text-muted-foreground mb-4">
+              Solo el superadmin puede acceder a este panel
+            </p>
+            <Button onClick={() => router.push("/dashboard")}>
+              Volver al Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <AuthGuard>
@@ -310,7 +329,13 @@ export default function AdminPanel() {
         <header className="border-b border-white/10 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
           <div className="container mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
-              <Logo href="/dashboard" size="sm" />
+              <div className="flex items-center gap-4">
+                <Logo href="/dashboard" size="sm" />
+                <Badge variant="default" className="cyber-gradient">
+                  <Shield className="w-3 h-3 mr-1" />
+                  SUPERADMIN
+                </Badge>
+              </div>
               <Link href="/dashboard">
                 <Button variant="outline" size="sm">
                   <ArrowLeft className="w-4 h-4 mr-2" />
@@ -324,28 +349,29 @@ export default function AdminPanel() {
         <div className="container mx-auto px-6 py-8">
           <div className="mb-8">
             <h1 className="text-4xl font-bold mb-2 font-['Orbitron']">
-              Panel de Administración
+              Panel de Superadmin
             </h1>
             <p className="text-muted-foreground">
-              Gestión completa de usuarios, créditos, proyectos y pagos
+              Gestión completa de usuarios, créditos, proyectos y pagos • {currentUserEmail}
             </p>
           </div>
 
           {/* Tabs */}
           <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
             <Button
+              variant={activeTab === "credits" ? "default" : "outline"}
+              onClick={() => setActiveTab("credits")}
+              className={activeTab === "credits" ? "cyber-gradient" : ""}
+            >
+              <Wallet className="w-4 h-4 mr-2" />
+              Gestión de Créditos
+            </Button>
+            <Button
               variant={activeTab === "users" ? "default" : "outline"}
               onClick={() => setActiveTab("users")}
             >
               <Users className="w-4 h-4 mr-2" />
               Usuarios
-            </Button>
-            <Button
-              variant={activeTab === "credits" ? "default" : "outline"}
-              onClick={() => setActiveTab("credits")}
-            >
-              <Wallet className="w-4 h-4 mr-2" />
-              Créditos
             </Button>
             <Button
               variant={activeTab === "payments" ? "default" : "outline"}
@@ -370,182 +396,225 @@ export default function AdminPanel() {
             </Button>
           </div>
 
-          {/* Payments Tab */}
-          {activeTab === "payments" && (
+          {/* Credits Tab - DESTACADO */}
+          {activeTab === "credits" && (
             <div className="space-y-6">
-              {/* Formulario de pago manual */}
-              <Card className="glass-card">
+              {/* Ajuste Rápido de Créditos */}
+              <Card className="glass-panel border-primary/50 shadow-lg shadow-primary/20">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <DollarSign className="w-5 h-5" />
-                    Registrar Pago Manual
+                  <CardTitle className="flex items-center gap-2 text-2xl">
+                    <Wallet className="w-6 h-6 text-primary" />
+                    Ajuste Manual de Créditos
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Usuario</Label>
-                      <Select
-                        value={manualPaymentForm.userId}
-                        onValueChange={(value) =>
-                          setManualPaymentForm({ ...manualPaymentForm, userId: value })
-                        }
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Seleccionar Usuario</Label>
+                        <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Elige un usuario..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {users.map((user) => (
+                              <SelectItem key={user.id} value={user.id}>
+                                {user.full_name || user.email} - {user.credits} créditos
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label>Cantidad de Créditos</Label>
+                        <Input
+                          type="number"
+                          value={creditAmount}
+                          onChange={(e) => setCreditAmount(e.target.value)}
+                          placeholder="Ej: 100 o -50"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Usa números positivos para agregar, negativos para quitar
+                        </p>
+                      </div>
+
+                      <div>
+                        <Label>Nota (opcional)</Label>
+                        <Input
+                          value={creditNote}
+                          onChange={(e) => setCreditNote(e.target.value)}
+                          placeholder="Ej: Bonus por pruebas, Corrección de bug, etc."
+                        />
+                      </div>
+
+                      <Button 
+                        onClick={handleCustomCreditAdjustment}
+                        className="w-full cyber-gradient"
+                        size="lg"
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar usuario" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {users.map((user) => (
-                            <SelectItem key={user.id} value={user.id}>
-                              {user.full_name || user.email} ({user.email})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <Wallet className="w-4 h-4 mr-2" />
+                        Aplicar Ajuste
+                      </Button>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label>Plan</Label>
-                      <Select
-                        value={manualPaymentForm.plan}
-                        onValueChange={(value) => {
-                          const amounts: Record<string, string> = {
-                            free: "0",
-                            pro: "29.99",
-                            premium: "99.99",
-                          };
-                          setManualPaymentForm({
-                            ...manualPaymentForm,
-                            plan: value,
-                            amount: amounts[value] || "0",
-                          });
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="free">Free (100 créditos)</SelectItem>
-                          <SelectItem value="pro">Pro (1,000 créditos)</SelectItem>
-                          <SelectItem value="premium">Premium (Ilimitado)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Monto (USD)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={manualPaymentForm.amount}
-                        onChange={(e) =>
-                          setManualPaymentForm({ ...manualPaymentForm, amount: e.target.value })
-                        }
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Método de Pago</Label>
-                      <Select
-                        value={manualPaymentForm.paymentMethod}
-                        onValueChange={(value) =>
-                          setManualPaymentForm({ ...manualPaymentForm, paymentMethod: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="manual">Manual</SelectItem>
-                          <SelectItem value="transfer">Transferencia</SelectItem>
-                          <SelectItem value="cash">Efectivo</SelectItem>
-                          <SelectItem value="mercadopago">Mercado Pago</SelectItem>
-                          <SelectItem value="other">Otro</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>Notas</Label>
-                      <Input
-                        placeholder="Ej: Pago vía transferencia - Comprobante #12345"
-                        value={manualPaymentForm.notes}
-                        onChange={(e) =>
-                          setManualPaymentForm({ ...manualPaymentForm, notes: e.target.value })
-                        }
-                      />
+                    <div className="space-y-3">
+                      <Label>Ajustes Rápidos</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setCreditAmount("100");
+                            setCreditNote("Bonus de 100 créditos");
+                          }}
+                          className="text-green-500 border-green-500/50 hover:bg-green-500/10"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          +100
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setCreditAmount("500");
+                            setCreditNote("Bonus de 500 créditos");
+                          }}
+                          className="text-green-500 border-green-500/50 hover:bg-green-500/10"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          +500
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setCreditAmount("1000");
+                            setCreditNote("Bonus de 1000 créditos");
+                          }}
+                          className="text-green-500 border-green-500/50 hover:bg-green-500/10"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          +1000
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setCreditAmount("5000");
+                            setCreditNote("Bonus de 5000 créditos");
+                          }}
+                          className="text-green-500 border-green-500/50 hover:bg-green-500/10"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          +5000
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setCreditAmount("-50");
+                            setCreditNote("Ajuste de -50 créditos");
+                          }}
+                          className="text-red-500 border-red-500/50 hover:bg-red-500/10"
+                        >
+                          <Minus className="w-4 h-4 mr-2" />
+                          -50
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setCreditAmount("-100");
+                            setCreditNote("Ajuste de -100 créditos");
+                          }}
+                          className="text-red-500 border-red-500/50 hover:bg-red-500/10"
+                        >
+                          <Minus className="w-4 h-4 mr-2" />
+                          -100
+                        </Button>
+                      </div>
                     </div>
                   </div>
-
-                  <Button onClick={handleManualPayment} className="mt-4">
-                    Registrar Pago y Activar Plan
-                  </Button>
                 </CardContent>
               </Card>
 
-              {/* Historial de pagos */}
-              <Card className="glass-card">
+              {/* Lista de Usuarios con sus créditos */}
+              <Card className="glass-panel border-border/50">
                 <CardHeader>
-                  <CardTitle>Historial de Pagos</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Balance de Créditos por Usuario</CardTitle>
+                    <div className="relative w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar usuarios..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  {loading ? (
-                    <p>Cargando...</p>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Usuario</TableHead>
-                          <TableHead>Plan</TableHead>
-                          <TableHead>Monto</TableHead>
-                          <TableHead>Método</TableHead>
-                          <TableHead>Estado</TableHead>
-                          <TableHead>Fecha</TableHead>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Usuario</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Plan</TableHead>
+                        <TableHead>Créditos</TableHead>
+                        <TableHead>Acciones Rápidas</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredUsers.map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell className="font-medium">
+                            {user.full_name || "Sin nombre"}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                          <TableCell>
+                            <Badge variant={user.plan === "premium" ? "default" : "secondary"}>
+                              {user.plan.toUpperCase()}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-mono font-bold text-lg text-primary">
+                              {user.credits}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleQuickCreditAdjustment(user.id, 100)}
+                                className="text-green-500 hover:text-green-400"
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                100
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleQuickCreditAdjustment(user.id, 500)}
+                                className="text-green-500 hover:text-green-400"
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                500
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedUserId(user.id);
+                                  setActiveTab("credits");
+                                  window.scrollTo({ top: 0, behavior: "smooth" });
+                                }}
+                                className="text-cyan-500 hover:text-cyan-400"
+                              >
+                                Personalizado
+                              </Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {payments.map((payment) => (
-                          <TableRow key={payment.id}>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">
-                                  {(payment.profiles as any)?.full_name || "Sin nombre"}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {(payment.profiles as any)?.email}
-                                </p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">
-                                {(payment.metadata as any)?.plan_type?.toUpperCase() || "N/A"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-mono">
-                              ${parseFloat(payment.amount).toFixed(2)}
-                            </TableCell>
-                            <TableCell className="capitalize">{payment.payment_method}</TableCell>
-                            <TableCell>
-                              {payment.status === "completed" ? (
-                                <Badge className="bg-green-500/20 text-green-500">
-                                  <CheckCircle className="w-3 h-3 mr-1" />
-                                  Completado
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline">
-                                  <XCircle className="w-3 h-3 mr-1" />
-                                  {payment.status}
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {new Date(payment.created_at).toLocaleDateString("es-ES")}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
+                      ))}
+                    </TableBody>
+                  </Table>
                 </CardContent>
               </Card>
             </div>
@@ -576,8 +645,8 @@ export default function AdminPanel() {
                       <TableHead>Email</TableHead>
                       <TableHead>Rol</TableHead>
                       <TableHead>Créditos</TableHead>
+                      <TableHead>Proyectos</TableHead>
                       <TableHead>Registrado</TableHead>
-                      <TableHead>Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -588,35 +657,16 @@ export default function AdminPanel() {
                         </TableCell>
                         <TableCell className="text-muted-foreground">{user.email}</TableCell>
                         <TableCell>
-                          <Badge variant={user.role === "admin" ? "default" : "secondary"}>
+                          <Badge variant={user.role === "superadmin" ? "default" : user.role === "admin" ? "secondary" : "outline"}>
                             {user.role || "user"}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <span className="font-mono">{user.credits}</span>
                         </TableCell>
+                        <TableCell>{user.projectCount}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {new Date(user.created_at).toLocaleDateString("es-ES")}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleCreditAdjustment(user.id, 100)}
-                            >
-                              <Plus className="h-3 w-3 mr-1" />
-                              100
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleCreditAdjustment(user.id, -50)}
-                            >
-                              <Minus className="h-3 w-3 mr-1" />
-                              50
-                            </Button>
-                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -626,16 +676,70 @@ export default function AdminPanel() {
             </Card>
           )}
 
-          {/* Credits Tab */}
-          {activeTab === "credits" && (
+          {/* Payments Tab */}
+          {activeTab === "payments" && (
             <Card className="glass-panel border-border/50">
               <CardHeader>
-                <CardTitle>Gestión de Créditos</CardTitle>
+                <CardTitle>Historial de Pagos</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground text-sm">
-                  Configuraciones avanzadas próximamente disponibles.
-                </p>
+                {loading ? (
+                  <p>Cargando...</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Usuario</TableHead>
+                        <TableHead>Plan</TableHead>
+                        <TableHead>Monto</TableHead>
+                        <TableHead>Método</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead>Fecha</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {payments.map((payment) => (
+                        <TableRow key={payment.id}>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">
+                                {(payment.profiles as any)?.full_name || "Sin nombre"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {(payment.profiles as any)?.email}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {(payment.metadata as any)?.plan_type?.toUpperCase() || "N/A"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-mono">
+                            ${parseFloat(payment.amount).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="capitalize">{payment.payment_method}</TableCell>
+                          <TableCell>
+                            {payment.status === "completed" ? (
+                              <Badge className="bg-green-500/20 text-green-500">
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Completado
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline">
+                                <XCircle className="w-3 h-3 mr-1" />
+                                {payment.status}
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(payment.created_at).toLocaleDateString("es-ES")}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           )}
@@ -648,7 +752,7 @@ export default function AdminPanel() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground text-sm">
-                  Configuraciones avanzadas próximamente disponibles.
+                  Funcionalidad próximamente disponible.
                 </p>
               </CardContent>
             </Card>
@@ -662,7 +766,7 @@ export default function AdminPanel() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground text-sm">
-                  Configuraciones avanzadas próximamente disponibles.
+                  Funcionalidad próximamente disponible.
                 </p>
               </CardContent>
             </Card>
