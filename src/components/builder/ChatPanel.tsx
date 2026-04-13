@@ -34,7 +34,7 @@ interface ChatPanelProps {
 
 export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelProps) {
   const [input, setInput] = useState("");
-  const [selectedModel, setSelectedModel] = useState<AIModel>("gpt4");
+  const [selectedModel, setSelectedModel] = useState<AIModel>("claude_sonnet");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -74,6 +74,12 @@ export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelPr
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="glass-panel border-border/50">
+              <SelectItem value="claude_sonnet">
+                <div className="flex flex-col items-start">
+                  <span>Claude 3.5 Sonnet ⭐</span>
+                  <span className="text-xs text-muted-foreground">15 créditos • Recomendado</span>
+                </div>
+              </SelectItem>
               <SelectItem value="gpt4">
                 <div className="flex flex-col items-start">
                   <span>GPT-4o Mini</span>
@@ -84,12 +90,6 @@ export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelPr
                 <div className="flex flex-col items-start">
                   <span>GPT-3.5 Turbo</span>
                   <span className="text-xs text-muted-foreground">5 créditos • Muy rápido</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="claude_sonnet">
-                <div className="flex flex-col items-start">
-                  <span>Claude 3.5 Sonnet</span>
-                  <span className="text-xs text-muted-foreground">20 créditos • Arquitectura</span>
                 </div>
               </SelectItem>
               <SelectItem value="claude_opus">

@@ -114,7 +114,7 @@ export default async function handler(
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  const { projectId, userId, prompt, model = "gpt4", context }: GenerateRequest = req.body;
+  const { projectId, userId, prompt, model = "claude_sonnet", context }: GenerateRequest = req.body;
 
   if (!projectId || !userId || !prompt) {
     return res.status(400).json({ 
@@ -135,14 +135,14 @@ export default async function handler(
       .single();
 
     const modelCosts = (settings?.value as Record<string, any>) || {
+      claude_sonnet: { cost: 15, name: "Claude 3.5 Sonnet" },
       gpt4: { cost: 10, name: "GPT-4o Mini" },
       gpt3: { cost: 5, name: "GPT-3.5 Turbo" },
-      claude_sonnet: { cost: 20, name: "Claude 3.5 Sonnet" },
       claude_opus: { cost: 40, name: "Claude 3 Opus" },
     };
 
-    const selectedModel = modelCosts[model] || modelCosts.gpt4;
-    const generationCost = selectedModel.cost || 10;
+    const selectedModel = modelCosts[model] || modelCosts.claude_sonnet;
+    const generationCost = selectedModel.cost || 15;
 
     // 2. Verificar créditos del usuario con el cliente autenticado
     const { data: wallet, error: walletError } = await supabase
@@ -203,47 +203,81 @@ export default async function handler(
     let generatedCode;
     let modelUsed = "";
 
-    if (model === "claude_sonnet" || model === "claude_opus") {
-      // Verificar si Claude está configurado
-      if (!anthropic || !process.env.ANTHROPIC_API_KEY) {
-        return res.status(400).json({
-          success: false,
-          error: "Claude no está configurado. Agrega ANTHROPIC_API_KEY a .env.local o usa GPT-4o Mini.",
+    // Intentar con Claude primero (más confiable)
+    if ((model === "claude_sonnet" || model === "claude_opus") && anthropic) {
+      try {
+        const claudeModel = model === "claude_opus" 
+          ? "claude-3-opus-20240229" 
+          : "claude-3-5-sonnet-20241022";
+
+        const messages: Anthropic.MessageCreateParams["messages"] = [
+          ...(context?.previousMessages?.map(m => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          })) || []),
+          { role: "user", content: fullPrompt },
+        ];
+
+        console.log("🤖 Usando Claude:", claudeModel);
+
+        const response = await anthropic.messages.create({
+          model: claudeModel,
+          max_tokens: 4000,
+          system: SYSTEM_PROMPT,
+          messages,
         });
+
+        const textContent = response.content.find(c => c.type === "text");
+        const rawResponse = textContent?.type === "text" ? textContent.text : "";
+        
+        // Extraer JSON del response (puede venir con markdown)
+        const jsonMatch = rawResponse.match(/```json\n([\s\S]*?)\n```/) || 
+                         rawResponse.match(/\{[\s\S]*"files"[\s\S]*\}/);
+        
+        generatedCode = jsonMatch ? JSON.parse(jsonMatch[1] || jsonMatch[0]) : JSON.parse(rawResponse);
+        modelUsed = model === "claude_opus" ? "Claude 3 Opus" : "Claude 3.5 Sonnet";
+
+        console.log("✅ Claude respondió exitosamente");
+
+      } catch (claudeError: any) {
+        console.error("❌ Error con Claude:", claudeError.message);
+        
+        // Si Claude falla, intentar con OpenAI como fallback
+        if (openai) {
+          console.log("⚠️ Intentando fallback a OpenAI...");
+          try {
+            const completion = await openai.chat.completions.create({
+              model: "gpt-3.5-turbo",
+              messages: [
+                { role: "system", content: SYSTEM_PROMPT },
+                ...(context?.previousMessages?.map(m => ({
+                  role: m.role as "system" | "user" | "assistant",
+                  content: m.content,
+                })) || []),
+                { role: "user", content: fullPrompt },
+              ],
+              temperature: 0.7,
+              max_tokens: 4000,
+              response_format: { type: "json_object" },
+            });
+
+            generatedCode = JSON.parse(completion.choices[0].message.content || "{}");
+            modelUsed = "GPT-3.5 Turbo (fallback desde Claude)";
+          } catch (openaiError) {
+            throw new Error(
+              `Tanto Claude como OpenAI fallaron.\n\n` +
+              `Claude: ${claudeError.message}\n` +
+              `OpenAI: ${openaiError instanceof Error ? openaiError.message : 'Error desconocido'}\n\n` +
+              `Verifica tus API keys en .env.local`
+            );
+          }
+        } else {
+          throw claudeError;
+        }
       }
 
-      // Usar Claude para tareas complejas
-      const claudeModel = model === "claude_opus" 
-        ? "claude-3-opus-20240229" 
-        : "claude-3-5-sonnet-20241022";
-
-      const messages: Anthropic.MessageCreateParams["messages"] = [
-        ...(context?.previousMessages?.map(m => ({
-          role: m.role as "user" | "assistant",
-          content: m.content,
-        })) || []),
-        { role: "user", content: fullPrompt },
-      ];
-
-      const response = await anthropic.messages.create({
-        model: claudeModel,
-        max_tokens: 4000,
-        system: SYSTEM_PROMPT,
-        messages,
-      });
-
-      const textContent = response.content.find(c => c.type === "text");
-      const rawResponse = textContent?.type === "text" ? textContent.text : "";
-      
-      // Extraer JSON del response (puede venir con markdown)
-      const jsonMatch = rawResponse.match(/```json\n([\s\S]*?)\n```/) || 
-                       rawResponse.match(/\{[\s\S]*"files"[\s\S]*\}/);
-      
-      generatedCode = jsonMatch ? JSON.parse(jsonMatch[1] || jsonMatch[0]) : JSON.parse(rawResponse);
-      modelUsed = model === "claude_opus" ? "Claude 3 Opus" : "Claude 3.5 Sonnet";
-
     } else {
-      // Usar OpenAI GPT-4o Mini o GPT-3.5 Turbo
+      // Usar OpenAI
       const messages: OpenAI.ChatCompletionMessageParam[] = [
         { role: "system", content: SYSTEM_PROMPT },
         ...(context?.previousMessages?.map(m => ({
@@ -253,7 +287,6 @@ export default async function handler(
         { role: "user", content: fullPrompt },
       ];
 
-      // Intentar con GPT-4o Mini primero
       let openaiModel = "gpt-4o-mini";
       modelUsed = "GPT-4o Mini";
 
@@ -263,6 +296,8 @@ export default async function handler(
       }
 
       try {
+        console.log("🤖 Usando OpenAI:", openaiModel);
+
         const completion = await openai.chat.completions.create({
           model: openaiModel,
           messages,
@@ -272,32 +307,43 @@ export default async function handler(
         });
 
         generatedCode = JSON.parse(completion.choices[0].message.content || "{}");
+        console.log("✅ OpenAI respondió exitosamente");
 
       } catch (openaiError: any) {
-        // Si GPT-4o Mini falla por falta de acceso, intentar con GPT-3.5 Turbo
-        if (openaiError.status === 403 || openaiError.status === 401) {
-          console.log("⚠️ GPT-4o Mini no disponible, intentando con GPT-3.5 Turbo...");
+        console.error("❌ Error con OpenAI:", openaiError.message);
+        
+        // Intentar fallback a Claude si está disponible
+        if (anthropic && (openaiError.status === 403 || openaiError.status === 401)) {
+          console.log("⚠️ Intentando fallback a Claude...");
           
           try {
-            const completion = await openai.chat.completions.create({
-              model: "gpt-3.5-turbo",
-              messages,
-              temperature: 0.7,
+            const response = await anthropic.messages.create({
+              model: "claude-3-5-sonnet-20241022",
               max_tokens: 4000,
-              response_format: { type: "json_object" },
+              system: SYSTEM_PROMPT,
+              messages: [
+                ...(context?.previousMessages?.map(m => ({
+                  role: m.role as "user" | "assistant",
+                  content: m.content,
+                })) || []),
+                { role: "user", content: fullPrompt },
+              ],
             });
 
-            generatedCode = JSON.parse(completion.choices[0].message.content || "{}");
-            modelUsed = "GPT-3.5 Turbo (fallback)";
+            const textContent = response.content.find(c => c.type === "text");
+            const rawResponse = textContent?.type === "text" ? textContent.text : "";
+            const jsonMatch = rawResponse.match(/```json\n([\s\S]*?)\n```/) || 
+                             rawResponse.match(/\{[\s\S]*"files"[\s\S]*\}/);
             
+            generatedCode = jsonMatch ? JSON.parse(jsonMatch[1] || jsonMatch[0]) : JSON.parse(rawResponse);
+            modelUsed = "Claude 3.5 Sonnet (fallback desde OpenAI)";
+
           } catch (fallbackError: any) {
-            console.error("❌ Error con GPT-3.5 Turbo:", fallbackError);
             throw new Error(
-              `No tienes acceso a modelos de IA. Verifica tu API key de OpenAI:\n` +
-              `1. Ve a https://platform.openai.com/api-keys\n` +
-              `2. Crea una nueva API key\n` +
-              `3. Agrega créditos en https://platform.openai.com/settings/organization/billing\n` +
-              `4. Actualiza OPENAI_API_KEY en .env.local`
+              `Tanto OpenAI como Claude fallaron.\n\n` +
+              `OpenAI: ${openaiError.message}\n` +
+              `Claude: ${fallbackError.message}\n\n` +
+              `Verifica tus API keys en .env.local`
             );
           }
         } else {
