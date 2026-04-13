@@ -6,6 +6,7 @@ import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -20,15 +21,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { 
-  getProjectById, 
+  getProject, 
   getProjectFiles, 
   getProjectVersions,
 } from "@/services/projectService";
+import type { Project, ProjectFile, ProjectVersion } from "@/services/projectService";
 import { 
-  getOrCreateConversation, 
+  createConversation, 
   getConversationMessages,
   addMessage,
 } from "@/services/conversationService";
+import type { Conversation } from "@/services/conversationService";
 import {
   connectGitHub,
   disconnectGitHub,
@@ -59,6 +62,9 @@ import {
   Link as LinkIcon,
   Check,
   X,
+  MessageSquare,
+  FileCode,
+  Clock,
 } from "lucide-react";
 
 type AIModel = "gpt4" | "claude_sonnet" | "claude_opus";
@@ -108,7 +114,7 @@ function BuilderContent() {
   async function loadProject() {
     if (!id || typeof id !== "string") return;
 
-    const projectData = await getProjectById(id);
+    const projectData = await getProject(id);
     
     if (!projectData) {
       router.push("/dashboard");
@@ -120,7 +126,16 @@ function BuilderContent() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    let conversationData = await getOrCreateConversation(projectData.id, user.id);
+    // Obtener la primera conversación activa o crear una nueva
+    const { data: convData } = await supabase
+      .from("conversations")
+      .select("*")
+      .eq("project_id", projectData.id)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    let conversationData = convData && convData.length > 0 ? convData[0] : null;
     
     if (!conversationData) {
       conversationData = await createConversation(projectData.id, user.id);
@@ -251,7 +266,7 @@ function BuilderContent() {
         setShowDeployModal(false);
         
         // Actualizar proyecto
-        const updatedProject = await getProjectById(project.id);
+        const updatedProject = await getProject(project.id);
         if (updatedProject) {
           setProject(updatedProject);
         }
