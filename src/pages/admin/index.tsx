@@ -19,7 +19,10 @@ import {
   DollarSign,
   CreditCard,
   CheckCircle,
-  XCircle
+  XCircle,
+  Search,
+  Plus,
+  Minus
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import {
@@ -39,12 +42,24 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
+interface UserData {
+  id: string;
+  email?: string;
+  full_name?: string | null;
+  role?: string | null;
+  created_at: string;
+  credits: number;
+  plan: string;
+  projectCount: number;
+}
+
 export default function AdminPanel() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"users" | "credits" | "projects" | "payments" | "settings">("users");
   const [users, setUsers] = useState<UserData[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Form states para agregar pago manual
   const [manualPaymentForm, setManualPaymentForm] = useState({
@@ -280,11 +295,16 @@ export default function AdminPanel() {
       metadata: { admin_id: user.id },
     });
 
-    await loadAdminData();
+    await loadUsers();
   }
 
+  const filteredUsers = users.filter(user => 
+    user.email?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    user.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
-    <AuthGuard requireAdmin>
+    <AuthGuard>
       <div className="min-h-screen bg-background">
         {/* Header */}
         <header className="border-b border-white/10 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
@@ -576,10 +596,7 @@ export default function AdminPanel() {
                           <span className="font-mono">{user.credits}</span>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {formatDistanceToNow(new Date(user.created_at), {
-                            addSuffix: true,
-                            locale: es,
-                          })}
+                          {new Date(user.created_at).toLocaleDateString("es-ES")}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
