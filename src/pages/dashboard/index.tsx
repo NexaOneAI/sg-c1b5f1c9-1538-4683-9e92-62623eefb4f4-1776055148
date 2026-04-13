@@ -18,7 +18,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { getCurrentProfile } from "@/services/profileService";
 import { getCreditWallet } from "@/services/creditService";
-import { getAllProjects, createProject } from "@/services/projectService";
+import { getUserProjects, createProject } from "@/services/projectService";
 import { 
   Plus, 
   Search, 
@@ -79,7 +79,7 @@ function DashboardContent() {
       const wallet = await getCreditWallet(user.id);
       setCredits(wallet?.balance || 0);
 
-      const projectsData = await getAllProjects(user.id);
+      const projectsData = await getUserProjects(user.id);
       setProjects(projectsData);
       setFilteredProjects(projectsData);
     }
@@ -105,7 +105,7 @@ function DashboardContent() {
     const newProject = await createProject(user.id, {
       name: `Proyecto ${projects.length + 1}`,
       description: "Nuevo proyecto creado desde el dashboard",
-      tech_stack: "next-tailwind-supabase",
+      framework: "react",
       status: "active",
     });
 
@@ -314,7 +314,7 @@ function DashboardContent() {
                       })}
                     </div>
                     <Badge variant="outline" className="text-xs">
-                      {project.tech_stack || "Next.js"}
+                      {project.framework || "React"}
                     </Badge>
                   </div>
                 </CardContent>
