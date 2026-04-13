@@ -132,19 +132,35 @@ export default async function handler(
     const selectedModel = modelCosts[model] || modelCosts.gpt4;
     const generationCost = selectedModel.cost || 10;
 
-    // 2. Verificar créditos del usuario
-    const { data: wallet } = await supabase
+    // 2. Verificar créditos del usuario - FIX: Usar balance real, no solo verificar existencia
+    const { data: wallet, error: walletError } = await supabase
       .from("credit_wallets")
-      .select("balance")
+      .select("id, balance")
       .eq("user_id", userId)
       .single();
 
-    if (!wallet || wallet.balance < generationCost) {
+    console.log("💰 Wallet check:", { wallet, walletError, userId, generationCost });
+
+    if (walletError || !wallet) {
+      console.error("❌ Error obteniendo wallet:", walletError);
       return res.status(402).json({
         success: false,
-        error: `Insufficient credits. This operation requires ${generationCost} credits. Please purchase more credits to continue.`,
+        error: "No se pudo verificar tu saldo de créditos. Intenta nuevamente.",
       });
     }
+
+    // FIX: Comparar balance numérico correctamente
+    const currentBalance = Number(wallet.balance) || 0;
+    
+    if (currentBalance < generationCost) {
+      console.log("❌ Insufficient credits:", { currentBalance, generationCost });
+      return res.status(402).json({
+        success: false,
+        error: `Insufficient credits. This operation requires ${generationCost} credits. You have ${currentBalance} credits. Please purchase more credits to continue.`,
+      });
+    }
+
+    console.log("✅ Credits verified:", { currentBalance, generationCost, remaining: currentBalance - generationCost });
 
     // 3. Construir contexto del prompt con archivos y mensajes previos
     const contextStr = context?.files
@@ -216,27 +232,24 @@ export default async function handler(
       throw new Error("Invalid AI response format");
     }
 
-    // 6. Descontar créditos
-    const { data: walletData } = await supabase
-      .from("credit_wallets")
-      .select("id")
-      .eq("user_id", userId)
-      .single();
+    // 6. Descontar créditos - FIX: Usar el wallet.id que ya tenemos
+    const { error: transactionError } = await supabase.from("credit_transactions").insert({
+      wallet_id: wallet.id,
+      user_id: userId,
+      amount: -generationCost,
+      type: "usage",
+      description: `AI generation (${modelUsed}): ${prompt.substring(0, 50)}...`,
+      metadata: { 
+        projectId, 
+        model: modelUsed,
+        prompt: prompt.substring(0, 200),
+        filesGenerated: generatedCode.files.length,
+      },
+    });
 
-    if (walletData) {
-      await supabase.from("credit_transactions").insert({
-        wallet_id: walletData.id,
-        user_id: userId,
-        amount: -generationCost,
-        type: "usage",
-        description: `AI generation (${modelUsed}): ${prompt.substring(0, 50)}...`,
-        metadata: { 
-          projectId, 
-          model: modelUsed,
-          prompt: prompt.substring(0, 200),
-          filesGenerated: generatedCode.files.length,
-        },
-      });
+    if (transactionError) {
+      console.error("⚠️ Error registrando transacción:", transactionError);
+      // No bloqueamos la generación si falla el registro, solo logueamos
     }
 
     // 7. Crear nueva versión del proyecto
