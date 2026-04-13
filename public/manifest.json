@@ -1,0 +1,41 @@
+{
+  "name": "Nexa One - AI App Builder",
+  "short_name": "Nexa One",
+  "description": "Plataforma SaaS premium para crear aplicaciones web mediante conversaciones con IA",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0A0F",
+  "theme_color": "#A855F7",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["productivity", "developer tools"],
+  "shortcuts": [
+    {
+      "name": "Nuevo Proyecto",
+      "short_name": "Nuevo",
+      "description": "Crear un nuevo proyecto",
+      "url": "/dashboard?action=new",
+      "icons": [{ "src": "/favicon.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Ver todos mis proyectos",
+      "url": "/dashboard",
+      "icons": [{ "src": "/favicon.png", "sizes": "192x192" }]
+    }
+  ]
+}
