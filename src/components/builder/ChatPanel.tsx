@@ -119,13 +119,13 @@ export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelPr
                   }`}>
                     <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                     
-                    {msg.metadata?.modelUsed && (
+                    {(msg.metadata as any)?.modelUsed && (
                       <div className="mt-2 pt-2 border-t border-border/30 flex items-center gap-2 text-xs opacity-70">
                         <Sparkles className="h-3 w-3" />
-                        <span>{msg.metadata.modelUsed}</span>
-                        {msg.metadata?.creditsUsed && (
+                        <span>{(msg.metadata as any).modelUsed}</span>
+                        {(msg.metadata as any)?.creditsUsed && (
                           <Badge variant="outline" className="ml-auto">
-                            -{msg.metadata.creditsUsed} créditos
+                            -{(msg.metadata as any).creditsUsed} créditos
                           </Badge>
                         )}
                       </div>
