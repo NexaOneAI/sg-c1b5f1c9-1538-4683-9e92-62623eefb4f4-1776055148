@@ -2,13 +2,11 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, Sparkles, User, Loader2, Zap, Brain, Cpu } from "lucide-react";
+import { Send, Loader2, User, Bot, Sparkles } from "lucide-react";
 import type { Message } from "@/services/conversationService";
-import { formatDistanceToNow } from "date-fns";
-import { es } from "date-fns/locale";
 
 type AIModel = "gpt4" | "claude_sonnet" | "claude_opus";
 
@@ -18,35 +16,10 @@ interface ChatPanelProps {
   isProcessing: boolean;
 }
 
-const AI_MODELS = [
-  { 
-    value: "gpt4" as const, 
-    label: "GPT-4 Turbo", 
-    cost: 10,
-    icon: Zap,
-    description: "Rápido y eficiente"
-  },
-  { 
-    value: "claude_sonnet" as const, 
-    label: "Claude Sonnet", 
-    cost: 20,
-    icon: Brain,
-    description: "Arquitectura compleja"
-  },
-  { 
-    value: "claude_opus" as const, 
-    label: "Claude Opus", 
-    cost: 40,
-    icon: Cpu,
-    description: "Máxima calidad"
-  },
-];
-
 export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const [selectedModel, setSelectedModel] = useState<AIModel>("gpt4");
   const scrollRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -54,122 +27,131 @@ export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelPr
     }
   }, [messages]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSend() {
     if (!input.trim() || isProcessing) return;
-
-    const content = input;
+    
+    const message = input.trim();
     setInput("");
-    await onSendMessage(content, selectedModel);
+    await onSendMessage(message, selectedModel);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e);
+      handleSend();
     }
   }
 
-  const currentModel = AI_MODELS.find(m => m.value === selectedModel) || AI_MODELS[0];
-  const ModelIcon = currentModel.icon;
+  const modelInfo = {
+    gpt4: { name: "GPT-4 Turbo", cost: 10, icon: Sparkles, color: "text-green-500" },
+    claude_sonnet: { name: "Claude 3.5 Sonnet", cost: 20, icon: Sparkles, color: "text-blue-500" },
+    claude_opus: { name: "Claude 3 Opus", cost: 40, icon: Sparkles, color: "text-purple-500" },
+  };
 
   return (
-    <div className="flex flex-col h-full bg-card/50 border-r border-border/50">
-      <div className="p-4 border-b border-border/50 space-y-3">
-        <h2 className="text-lg font-semibold flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          Chat IA
-        </h2>
-        
-        <Select value={selectedModel} onValueChange={(v) => setSelectedModel(v as AIModel)}>
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {AI_MODELS.map((model) => {
-              const Icon = model.icon;
-              return (
-                <SelectItem key={model.value} value={model.value}>
-                  <div className="flex items-center gap-2">
-                    <Icon className="h-4 w-4" />
-                    <div className="flex flex-col">
-                      <span className="font-medium">{model.label}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {model.description} • {model.cost} créditos
-                      </span>
+    <div className="h-full flex flex-col bg-background">
+      <div className="border-b border-border/50 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex-1">
+            <Select value={selectedModel} onValueChange={(v) => setSelectedModel(v as AIModel)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(modelInfo).map(([key, info]) => (
+                  <SelectItem key={key} value={key}>
+                    <div className="flex items-center gap-2">
+                      <info.icon className={`h-4 w-4 ${info.color}`} />
+                      <span>{info.name}</span>
+                      <Badge variant="outline" className="ml-auto">
+                        {info.cost} créditos
+                      </Badge>
                     </div>
-                  </div>
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
 
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         <div className="space-y-4">
-          {messages.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-                <Sparkles className="h-8 w-8 text-primary" />
+          {messages.length === 0 && (
+            <Card className="glass-panel border-border/50 p-6 text-center">
+              <div className="flex flex-col items-center gap-3">
+                <div className="p-3 rounded-lg bg-primary/10">
+                  <Sparkles className="h-8 w-8 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-2">Comienza a construir</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Describe lo que quieres crear y la IA lo generará para ti
+                  </p>
+                </div>
               </div>
-              <h3 className="text-lg font-semibold mb-2">Comienza a crear</h3>
-              <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-                Escribe qué aplicación quieres construir y Nexa One la generará para ti
-              </p>
-            </div>
-          ) : (
-            messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex gap-3 ${
-                  message.role === "user" ? "flex-row-reverse" : ""
-                }`}
-              >
-                <Avatar className="w-8 h-8 flex-shrink-0">
-                  <div className={`w-full h-full flex items-center justify-center ${
-                    message.role === "user" 
-                      ? "bg-primary/20" 
-                      : "bg-accent/20"
-                  }`}>
-                    {message.role === "user" ? (
-                      <User className="h-4 w-4" />
-                    ) : (
-                      <Sparkles className="h-4 w-4" />
-                    )}
-                  </div>
-                </Avatar>
+            </Card>
+          )}
+
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            >
+              <div className={`flex gap-3 max-w-[85%] ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+                <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${
+                  msg.role === "user" 
+                    ? "cyber-gradient" 
+                    : "bg-primary/10"
+                }`}>
+                  {msg.role === "user" ? (
+                    <User className="h-4 w-4" />
+                  ) : (
+                    <Bot className="h-4 w-4 text-primary" />
+                  )}
+                </div>
                 
-                <div className={`flex-1 ${message.role === "user" ? "text-right" : ""}`}>
-                  <Card className={`inline-block max-w-[85%] p-3 ${
-                    message.role === "user"
-                      ? "bg-primary/10 border-primary/20"
+                <div className="flex-1">
+                  <Card className={`p-3 ${
+                    msg.role === "user"
+                      ? "cyber-gradient text-white"
                       : "glass-panel border-border/50"
                   }`}>
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    
+                    {msg.metadata?.modelUsed && (
+                      <div className="mt-2 pt-2 border-t border-border/30 flex items-center gap-2 text-xs opacity-70">
+                        <Sparkles className="h-3 w-3" />
+                        <span>{msg.metadata.modelUsed}</span>
+                        {msg.metadata?.creditsUsed && (
+                          <Badge variant="outline" className="ml-auto">
+                            -{msg.metadata.creditsUsed} créditos
+                          </Badge>
+                        )}
+                      </div>
+                    )}
                   </Card>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {formatDistanceToNow(new Date(message.created_at), {
-                      addSuffix: true,
-                      locale: es,
+                  
+                  <p className="text-xs text-muted-foreground mt-1 px-1">
+                    {new Date(msg.created_at).toLocaleTimeString("es-ES", {
+                      hour: "2-digit",
+                      minute: "2-digit",
                     })}
                   </p>
                 </div>
               </div>
-            ))
-          )}
-          
+            </div>
+          ))}
+
           {isProcessing && (
             <div className="flex gap-3">
-              <Avatar className="w-8 h-8 flex-shrink-0">
-                <div className="w-full h-full flex items-center justify-center bg-accent/20">
-                  <Sparkles className="h-4 w-4 animate-pulse" />
-                </div>
-              </Avatar>
+              <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Bot className="h-4 w-4 text-primary" />
+              </div>
               <Card className="glass-panel border-border/50 p-3">
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  <span className="text-sm text-muted-foreground">Generando código con {currentModel.label}...</span>
+                  <span className="text-sm text-muted-foreground">Generando código...</span>
                 </div>
               </Card>
             </div>
@@ -177,35 +159,34 @@ export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelPr
         </div>
       </ScrollArea>
 
-      <form onSubmit={handleSubmit} className="p-4 border-t border-border/50 space-y-2">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <ModelIcon className="h-3 w-3" />
-          <span>{currentModel.label} • {currentModel.cost} créditos por generación</span>
-        </div>
+      <div className="border-t border-border/50 p-4">
         <div className="flex gap-2">
           <Textarea
-            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Escribe tu mensaje... (Enter para enviar)"
-            className="min-h-[60px] max-h-[200px] resize-none"
+            placeholder="Describe lo que quieres construir..."
+            className="min-h-[80px] resize-none"
             disabled={isProcessing}
           />
           <Button
-            type="submit"
-            size="icon"
-            className="cyber-gradient h-[60px] w-[60px] flex-shrink-0"
+            onClick={handleSend}
             disabled={!input.trim() || isProcessing}
+            className="cyber-gradient self-end"
+            size="icon"
           >
             {isProcessing ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Send className="h-5 w-5" />
+              <Send className="h-4 w-4" />
             )}
           </Button>
         </div>
-      </form>
+        
+        <p className="text-xs text-muted-foreground mt-2 text-center">
+          {modelInfo[selectedModel].name} • {modelInfo[selectedModel].cost} créditos por mensaje
+        </p>
+      </div>
     </div>
   );
 }
