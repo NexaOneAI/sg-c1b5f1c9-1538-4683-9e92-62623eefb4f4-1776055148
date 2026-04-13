@@ -4,19 +4,36 @@ import Link from "next/link";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { getCurrentProfile } from "@/services/profileService";
 import { getCreditWallet } from "@/services/creditService";
-import { getUserProjects, createProject } from "@/services/projectService";
-import type { Profile } from "@/services/profileService";
-import type { CreditWallet } from "@/services/creditService";
-import type { Project } from "@/services/projectService";
-import { Plus, Search, LogOut, Settings, Sparkles, Clock, FileCode, Loader2 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { es } from "date-fns/locale";
+import { getAllProjects, createProject } from "@/services/projectService";
+import { 
+  Plus, 
+  Search, 
+  Folder, 
+  Clock, 
+  MoreVertical,
+  Loader2,
+  User,
+  Settings,
+  LogOut,
+  Shield,
+  CreditCard,
+  Sparkles
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function DashboardPage() {
   return (
@@ -28,82 +45,90 @@ export default function DashboardPage() {
 
 function DashboardContent() {
   const router = useRouter();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [wallet, setWallet] = useState<CreditWallet | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const { toast } = useToast();
+  const [projects, setProjects] = useState<any[]>([]);
+  const [filteredProjects, setFilteredProjects] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  const [creatingProject, setCreatingProject] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
+  const [credits, setCredits] = useState(0);
 
   useEffect(() => {
     loadDashboardData();
   }, []);
 
+  useEffect(() => {
+    const filtered = projects.filter(project =>
+      project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    setFilteredProjects(filtered);
+  }, [searchQuery, projects]);
+
   async function loadDashboardData() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        router.push("/auth/login");
-        return;
-      }
+    setLoading(true);
 
-      const [profileData, walletData] = await Promise.all([
-        getCurrentProfile(),
-        getCreditWallet(user.id),
-      ]);
-
-      console.log("Dashboard data loaded:", { profileData, walletData });
-
+    const profileData = await getCurrentProfile();
+    if (profileData) {
       setProfile(profileData);
-      setWallet(walletData);
-
-      if (profileData) {
-        const projectsData = await getUserProjects(profileData.id);
-        console.log("Projects loaded:", projectsData);
-        setProjects(projectsData);
-      }
-    } catch (error) {
-      console.error("Error loading dashboard:", error);
-    } finally {
-      setLoading(false);
     }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const wallet = await getCreditWallet(user.id);
+      setCredits(wallet?.balance || 0);
+
+      const projectsData = await getAllProjects(user.id);
+      setProjects(projectsData);
+      setFilteredProjects(projectsData);
+    }
+
+    setLoading(false);
   }
 
   async function handleCreateProject() {
-    if (!profile) {
-      console.error("No profile found");
+    if (creating) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "No estás autenticado",
+        variant: "destructive",
+      });
       return;
     }
 
-    setCreatingProject(true);
-    try {
-      const project = await createProject(profile.id, {
-        name: "Nuevo Proyecto",
-        description: "Proyecto sin descripción",
-        status: "active",
+    setCreating(true);
+
+    const newProject = await createProject(user.id, {
+      name: `Proyecto ${projects.length + 1}`,
+      description: "Nuevo proyecto creado desde el dashboard",
+      tech_stack: "next-tailwind-supabase",
+      status: "active",
+    });
+
+    if (newProject) {
+      toast({
+        title: "✅ Proyecto creado",
+        description: "Redirigiendo al builder...",
       });
-
-      console.log("Project created:", project);
-
-      if (project) {
-        router.push(`/builder/${project.id}`);
-      }
-    } catch (error) {
-      console.error("Error creating project:", error);
-    } finally {
-      setCreatingProject(false);
+      router.push(`/builder/${newProject.id}`);
+    } else {
+      toast({
+        title: "❌ Error",
+        description: "No se pudo crear el proyecto",
+        variant: "destructive",
+      });
+      setCreating(false);
     }
   }
 
-  async function handleLogout() {
+  async function handleSignOut() {
     await supabase.auth.signOut();
     router.push("/");
   }
-
-  const filteredProjects = projects.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   if (loading) {
     return (
@@ -113,46 +138,91 @@ function DashboardContent() {
     );
   }
 
+  const userInitials = profile?.full_name
+    ?.split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2) || profile?.email?.slice(0, 2).toUpperCase() || "U";
+
   return (
     <div className="min-h-screen bg-background">
       <nav className="border-b border-border/50 backdrop-blur-sm bg-background/80 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <Logo size="sm" />
-            
+            <Logo />
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card border border-border/50">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium">
-                  {wallet?.balance ?? 0} créditos
-                </span>
-              </div>
+              <Badge className="cyber-gradient hidden sm:flex">
+                <Sparkles className="w-3 h-3 mr-1" />
+                {credits.toLocaleString()} créditos
+              </Badge>
               
-              <Button variant="ghost" size="icon" asChild>
-                <Link href="/settings">
-                  <Settings className="h-4 w-4" />
-                </Link>
-              </Button>
-              
-              <Button variant="ghost" size="icon" onClick={handleLogout}>
-                <LogOut className="h-4 w-4" />
-              </Button>
+              {profile?.role === "superadmin" && (
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/admin">
+                    <Shield className="w-4 h-4 mr-2" />
+                    Admin
+                  </Link>
+                </Button>
+              )}
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="relative">
+                    <Avatar className="h-8 w-8 border border-primary/50">
+                      <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                        {userInitials}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="glass-panel border-border/50 w-56">
+                  <div className="px-2 py-1.5">
+                    <p className="text-sm font-medium">{profile?.full_name || "Usuario"}</p>
+                    <p className="text-xs text-muted-foreground">{profile?.email}</p>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile" className="cursor-pointer">
+                      <User className="w-4 h-4 mr-2" />
+                      Mi Perfil
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings" className="cursor-pointer">
+                      <Settings className="w-4 h-4 mr-2" />
+                      Configuración
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/pricing" className="cursor-pointer">
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      Planes y Créditos
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut} className="text-red-500 cursor-pointer">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Cerrar Sesión
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-display font-bold mb-2">
-            Bienvenido, {profile?.full_name || "Usuario"}
+          <h1 className="text-4xl font-bold mb-2 neon-text-primary font-['Orbitron']">
+            Mis Proyectos
           </h1>
           <p className="text-muted-foreground">
-            Administra tus proyectos y crea nuevas aplicaciones con IA
+            Construye aplicaciones web con IA en minutos
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -162,21 +232,20 @@ function DashboardContent() {
               className="pl-10"
             />
           </div>
-          
           <Button
-            className="cyber-gradient hover:opacity-90"
             onClick={handleCreateProject}
-            disabled={creatingProject}
+            disabled={creating}
+            className="cyber-gradient"
           >
-            {creatingProject ? (
+            {creating ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Creando...
               </>
             ) : (
               <>
-                <Plus className="mr-2 h-4 w-4" />
-                Nuevo Proyecto
+                <Plus className="h-4 w-4 mr-2" />
+                Crear Proyecto
               </>
             )}
           </Button>
@@ -185,61 +254,71 @@ function DashboardContent() {
         {filteredProjects.length === 0 ? (
           <Card className="glass-panel border-border/50">
             <CardContent className="flex flex-col items-center justify-center py-16">
-              <div className="rounded-full bg-primary/10 p-4 mb-4">
-                <FileCode className="h-8 w-8 text-primary" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">No hay proyectos</h3>
+              <Folder className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
+              <h3 className="text-lg font-semibold mb-2">
+                {searchQuery ? "No se encontraron proyectos" : "No tienes proyectos"}
+              </h3>
               <p className="text-muted-foreground text-center mb-6">
                 {searchQuery
-                  ? "No se encontraron proyectos con ese nombre"
-                  : "Crea tu primer proyecto para comenzar"}
+                  ? "Intenta con otro término de búsqueda"
+                  : "Crea tu primer proyecto y empieza a construir con IA"}
               </p>
               {!searchQuery && (
-                <Button
-                  className="cyber-gradient hover:opacity-90"
-                  onClick={handleCreateProject}
-                  disabled={creatingProject}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Crear Proyecto
+                <Button onClick={handleCreateProject} disabled={creating} className="cyber-gradient">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Crear Primer Proyecto
                 </Button>
               )}
             </CardContent>
           </Card>
         ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProjects.map((project) => (
-              <Link key={project.id} href={`/builder/${project.id}`}>
-                <Card className="glass-panel border-border/50 hover:border-primary/30 transition-all duration-300 cursor-pointer h-full">
-                  <CardHeader>
-                    <div className="flex items-start justify-between mb-2">
-                      <CardTitle className="text-xl">{project.name}</CardTitle>
-                      <Badge
-                        variant={project.status === "active" ? "default" : "secondary"}
-                        className={project.status === "active" ? "cyber-gradient" : ""}
-                      >
-                        {project.status === "active" ? "Activo" : "Archivado"}
-                      </Badge>
+              <Card
+                key={project.id}
+                className="glass-panel border-border/50 hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/20 cursor-pointer group"
+                onClick={() => router.push(`/builder/${project.id}`)}
+              >
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="group-hover:neon-text-primary transition-colors">
+                        {project.name}
+                      </CardTitle>
+                      <CardDescription className="mt-2 line-clamp-2">
+                        {project.description || "Sin descripción"}
+                      </CardDescription>
                     </div>
-                    <CardDescription className="line-clamp-2">
-                      {project.description || "Sin descripción"}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        <span>
-                          {formatDistanceToNow(new Date(project.updated_at), {
-                            addSuffix: true,
-                            locale: es,
-                          })}
-                        </span>
-                      </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="glass-panel border-border/50">
+                        <DropdownMenuItem>Renombrar</DropdownMenuItem>
+                        <DropdownMenuItem>Duplicar</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-red-500">Eliminar</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {new Date(project.created_at).toLocaleDateString("es-ES", {
+                        day: "2-digit",
+                        month: "short"
+                      })}
                     </div>
-                  </CardContent>
-                </Card>
-              </Link>
+                    <Badge variant="outline" className="text-xs">
+                      {project.tech_stack || "Next.js"}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         )}

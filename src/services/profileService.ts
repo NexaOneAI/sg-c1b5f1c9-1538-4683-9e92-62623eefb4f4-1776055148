@@ -3,6 +3,7 @@ import type { Database, Tables } from "@/integrations/supabase/types";
 
 export type Profile = Tables<"profiles">;
 export type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
+export type CreditTransaction = Tables<"credit_transactions">;
 
 export async function getCurrentProfile(): Promise<Profile | null> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -45,4 +46,28 @@ export async function updateProfile(
 export async function isAdmin(): Promise<boolean> {
   const profile = await getCurrentProfile();
   return profile?.role === "admin" || profile?.role === "superadmin";
+}
+
+export async function getUserTransactions(userId: string, limit = 10): Promise<CreditTransaction[]> {
+  const { data: wallet } = await supabase
+    .from("credit_wallets")
+    .select("id")
+    .eq("user_id", userId)
+    .single();
+
+  if (!wallet) return [];
+
+  const { data, error } = await supabase
+    .from("credit_transactions")
+    .select("*")
+    .eq("wallet_id", wallet.id)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error("Error fetching transactions:", error);
+    return [];
+  }
+
+  return data || [];
 }
