@@ -1,446 +1,300 @@
-# Nexa One - Documentación de Arquitectura 🏗️
+# 🏗️ Arquitectura - Nexa One
 
-## 📐 Visión General
+Documentación técnica completa del sistema Nexa One - Plataforma SaaS de construcción de aplicaciones web mediante IA.
 
-Nexa One es una plataforma SaaS full-stack construida con arquitectura moderna, escalable y lista para producción. Este documento detalla las decisiones técnicas, patrones de diseño y flujos del sistema.
+## 📋 Tabla de Contenidos
 
----
-
-## 🎯 Principios de Diseño
-
-### 1. **Separation of Concerns**
-- Frontend: React components puros, sin lógica de negocio
-- Services: Toda la lógica de API y base de datos
-- API Routes: Endpoints serverless para operaciones complejas
-
-### 2. **Type Safety**
-- TypeScript estricto en todo el proyecto
-- Tipos generados automáticamente desde Supabase
-- Interfaces explícitas para todos los servicios
-
-### 3. **Security First**
-- Row Level Security (RLS) en todas las tablas
-- Autenticación con Supabase Auth
-- API routes protegidas con verificación de sesión
-- Validación de permisos por rol
-
-### 4. **Performance**
-- Server-Side Rendering (SSR) con Next.js
-- Code splitting automático
-- Optimización de imágenes con Next/Image
-- Lazy loading de componentes pesados
+1. [Stack Tecnológico](#stack-tecnológico)
+2. [Estructura de Carpetas](#estructura-de-carpetas)
+3. [Base de Datos](#base-de-datos)
+4. [Flujos de Negocio](#flujos-de-negocio)
+5. [Integraciones Externas](#integraciones-externas)
+6. [Seguridad](#seguridad)
+7. [Performance](#performance)
 
 ---
 
-## 🗄️ Arquitectura de Base de Datos
+## 🛠️ Stack Tecnológico
 
-### Modelo de Datos
+### Frontend
+- Framework: Next.js 15 (Page Router)
+- UI: React 18.3 + TypeScript
+- Styling: Tailwind CSS + shadcn/ui
+- Fonts: Orbitron (headings) + Inter (body)
+- State: React Hooks + Context API
+- Icons: Lucide React
+
+### Backend
+- Runtime: Node.js 18+
+- API Routes: Next.js API Routes
+- Database: Supabase (PostgreSQL)
+- Auth: Supabase Auth (JWT)
+- ORM: Supabase Client SDK
+
+### Integraciones
+- IA: OpenAI GPT-4 + Claude 3.5
+- Git: GitHub OAuth + GitHub API
+- Deploy: Vercel API
+- DNS: NSOne (wildcard)
+
+### DevOps
+- Hosting: Vercel
+- CDN: Vercel Edge Network
+- SSL: Let's Encrypt (automático)
+- CI/CD: Vercel Git Integration
+
+---
+
+## 📁 Estructura de Carpetas
 
 ```
-Users (Supabase Auth)
-  ↓
-Profiles (1:1)
-  ├── Projects (1:N)
-  │   ├── Project Versions (1:N)
-  │   ├── Project Files (1:N)
-  │   └── Conversations (1:1)
-  │       └── Messages (1:N)
-  ├── Credit Wallet (1:1)
-  │   └── Credit Transactions (1:N)
-  ├── Subscription (1:1)
-  └── Payments (1:N)
+nexa-one/
+├── src/
+│   ├── components/
+│   │   ├── ui/             # shadcn/ui components
+│   │   ├── auth/           # AuthGuard
+│   │   └── builder/        # Chat, Preview, FileExplorer
+│   ├── pages/
+│   │   ├── api/            # API Routes
+│   │   ├── auth/           # Login, Register
+│   │   ├── dashboard/      # Dashboard principal
+│   │   ├── builder/        # Editor de proyectos
+│   │   ├── admin/          # Panel admin
+│   │   └── profile/        # Perfil de usuario
+│   ├── services/           # Business Logic
+│   └── integrations/       # Supabase, etc.
+├── public/                 # Assets estáticos
+├── supabase/
+│   └── migrations/         # SQL migrations
+└── docs/
+    ├── DEPLOY.md
+    ├── VERIFICATION.md
+    └── ARCHITECTURE.md
 ```
+
+---
+
+## 🗄️ Base de Datos
 
 ### Tablas Principales
 
-#### 1. **profiles**
-```sql
-- id (UUID, PK, FK → auth.users)
-- email (TEXT, UNIQUE)
-- full_name (TEXT)
-- avatar_url (TEXT)
-- role (ENUM: user, admin, superadmin)
-- created_at (TIMESTAMP)
-- updated_at (TIMESTAMP)
-```
+1. profiles - Usuarios extendidos de Supabase Auth
+2. credit_wallets - Créditos por usuario
+3. credit_transactions - Historial de transacciones
+4. subscriptions - Planes activos
+5. projects - Proyectos del usuario
+6. project_files - Código de los proyectos
+7. project_versions - Historial de versiones
+8. conversations - Chats IA
+9. conversation_messages - Mensajes del chat
+10. github_connections - Tokens OAuth GitHub
+11. deployment_logs - Historial de deploys
+12. admin_settings - Configuración global
 
-**RLS Policies:**
-- SELECT: Usuarios ven su propio perfil, admins ven todos
-- UPDATE: Solo el propio usuario puede actualizar su perfil
-- Admins tienen acceso completo
+### Relaciones Clave
 
-#### 2. **projects**
-```sql
-- id (UUID, PK)
-- user_id (UUID, FK → profiles)
-- name (TEXT)
-- description (TEXT)
-- status (ENUM: active, archived, deleted)
-- deployment_url (TEXT)
-- metadata (JSONB)
-- created_at (TIMESTAMP)
-- updated_at (TIMESTAMP)
-```
-
-**RLS Policies:**
-- Usuarios solo ven/modifican sus propios proyectos
-- Admins tienen acceso completo
-
-#### 3. **credit_wallets**
-```sql
-- id (UUID, PK)
-- user_id (UUID, UNIQUE, FK → profiles)
-- balance (INTEGER, DEFAULT 100)
-- created_at (TIMESTAMP)
-- updated_at (TIMESTAMP)
-```
-
-**Trigger:** Auto-create wallet al crear profile
-
-#### 4. **credit_transactions**
-```sql
-- id (UUID, PK)
-- wallet_id (UUID, FK → credit_wallets)
-- user_id (UUID, FK → profiles)
-- amount (INTEGER)
-- type (ENUM: purchase, usage, refund, admin_adjustment)
-- description (TEXT)
-- metadata (JSONB)
-- created_at (TIMESTAMP)
-```
-
-**Trigger:** Auto-update wallet balance al insertar transacción
+- profiles 1:1 credit_wallets
+- profiles 1:1 subscriptions
+- profiles 1:N projects
+- projects 1:N project_files
+- projects 1:N conversations
+- profiles 1:1 github_connections
+- projects 1:N deployment_logs
 
 ---
 
-## 🔐 Sistema de Autenticación
+## 🔄 Flujos de Negocio
 
-### Flujo de Registro
-1. Usuario completa formulario en `/auth/register`
-2. `authService.signUp()` crea usuario en Supabase Auth
-3. Trigger `handle_new_user()` crea perfil automáticamente
-4. Trigger `handle_new_profile()` crea wallet con 100 créditos iniciales
-5. Redirección a `/dashboard`
+### Registro de Usuario
 
-### Flujo de Login
-1. Usuario completa formulario en `/auth/login`
-2. `authService.signIn()` autentica con Supabase
-3. `AuthGuard` verifica sesión
-4. Redirección a `/dashboard`
+1. Usuario completa formulario
+2. Supabase Auth crea cuenta
+3. Trigger SQL automático:
+   - Crea profile
+   - Crea credit_wallet (100 créditos)
+   - Crea subscription (plan Free)
+4. Redirect a dashboard
 
-### Protección de Rutas
-```tsx
-// Rutas protegidas
-<AuthGuard>
-  <ProtectedPage />
-</AuthGuard>
+### Generación de Código IA
 
-// Verificación de admin
-const isAdmin = await isAdmin();
-if (!isAdmin) router.push("/dashboard");
-```
+1. Usuario escribe en chat
+2. Frontend verifica sesión
+3. POST a /api/ai/generate con token
+4. API verifica créditos
+5. Llama a OpenAI/Claude
+6. Descuenta créditos
+7. Guarda archivos en project_files
+8. Crea project_version
+9. Return código al frontend
+10. Preview se actualiza
 
----
+### Conectar GitHub
 
-## 💳 Sistema de Créditos
+1. Click en "Conectar GitHub"
+2. Redirect a GitHub OAuth
+3. Usuario autoriza
+4. Callback con code
+5. Intercambio por access_token
+6. Guardar en github_connections
+7. Listar repositorios
 
-### Modelo de Créditos
+### Push a GitHub
 
-**Wallet Balance:**
-- Se actualiza automáticamente via trigger `update_wallet_balance`
-- Transacciones son append-only (no se modifican)
-- Balance = SUM(amount) de todas las transacciones
+1. Usuario escribe commit message
+2. POST a /api/github/push
+3. API obtiene archivos del proyecto
+4. GitHub API: Create/Update files
+5. GitHub API: Create commit
+6. Return URL del commit
 
-**Tipos de Transacciones:**
-- `purchase`: Compra de créditos
-- `usage`: Consumo por generación de código
-- `refund`: Devolución
-- `admin_adjustment`: Ajuste manual del admin
+### Deploy a Vercel
 
-### Flujo de Consumo
-```typescript
-1. Verificar balance: getCreditWallet(userId)
-2. Validar suficientes créditos
-3. Ejecutar acción (generación de código)
-4. Descontar créditos: deductCredits(userId, amount, description)
-5. Trigger actualiza balance automáticamente
-```
-
-### Configuración de Costos
-```sql
--- admin_settings table
-{
-  "generation_cost": {"cost": 10},
-  "chat_cost": {"cost": 1},
-  "deployment_cost": {"cost": 50}
-}
-```
+1. Usuario configura subdominio
+2. Verificación de disponibilidad
+3. POST a /api/deployments/create
+4. Vercel API: Create deployment
+5. Vercel API: Add custom domain
+6. Guardar deployment_log
+7. Actualizar project.deployment_url
+8. DNS wildcard resuelve
+9. SSL automático en 15-30 min
 
 ---
 
-## 🤖 Integración con IA
+## 🔌 Integraciones Externas
 
-### Arquitectura de Generación
+### OpenAI GPT-4
+- Endpoint: api.openai.com/v1/chat/completions
+- Modelo: gpt-4-turbo-preview
+- Costo: 10 créditos por generación
+- Max tokens: 4000
 
-```
-User Input (Chat)
-  ↓
-API Route (/api/ai/generate)
-  ↓
-1. Verificar créditos
-2. Construir contexto (archivos actuales + mensajes previos)
-3. Llamada a OpenAI GPT-4
-  ↓
-OpenAI Response (JSON)
-  ↓
-4. Parsear archivos generados
-5. Guardar en project_files
-6. Descontar créditos
-7. Crear versión del proyecto
-  ↓
-Return a Frontend
-```
+### Claude 3.5 (Opcional)
+- Endpoint: api.anthropic.com/v1/messages
+- Modelos: Sonnet (20 créditos), Opus (40 créditos)
+- Max tokens: 4000
 
-### Prompt Engineering
+### GitHub API
+- OAuth: github.com/login/oauth/authorize
+- Repos: api.github.com/user/repos
+- Contents: api.github.com/repos/{owner}/{repo}/contents
+- Commits: api.github.com/repos/{owner}/{repo}/git/commits
 
-**System Prompt:**
-```
-Eres un experto desarrollador que genera código limpio, modular y funcional.
+### Vercel API
+- Deployments: api.vercel.com/v13/deployments
+- Domains: api.vercel.com/v9/projects/{id}/domains
+- Autenticación: Bearer token
 
-Reglas:
-- TypeScript estricto
-- Tailwind CSS para estilos
-- Componentes reutilizables
-- Sin placeholders, código completo
-- Retorna JSON: [{path, content, action}]
-```
-
-**User Context:**
-```json
-{
-  "files": [
-    {"path": "src/App.tsx", "content": "..."}
-  ],
-  "previousMessages": [
-    {"role": "user", "content": "..."},
-    {"role": "assistant", "content": "..."}
-  ]
-}
-```
+### Supabase
+- Auth: JWT tokens (1h validez)
+- Database: PostgreSQL con RLS
+- Client SDK: @supabase/supabase-js
+- Server SDK: Custom con auth token
 
 ---
 
-## 🎨 Sistema de Diseño
+## 🔒 Seguridad
 
-### Tokens de Color
+### Autenticación
+- Supabase JWT tokens
+- Session storage en cookies
+- Auto-refresh de tokens
+- RLS policies en todas las tablas
 
-```css
-:root {
-  /* Cyber Premium Palette */
-  --primary: 280 91% 65%;        /* Púrpura neón #A855F7 */
-  --accent: 190 95% 43%;         /* Cyan eléctrico #06B6D4 */
-  --background: 240 30% 4%;      /* Oscuro profundo #0A0A0F */
-  --foreground: 0 0% 98%;        /* Blanco casi puro */
-  
-  /* Glassmorphism */
-  --glass-bg: rgba(255, 255, 255, 0.05);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-blur: 12px;
-}
-```
+### RLS Policies
 
-### Componentes Premium
+profiles:
+- SELECT: auth.uid() = id OR admin
+- UPDATE: auth.uid() = id
 
-**Glassmorphism Card:**
-```tsx
-<Card className="glass-panel border-border/50">
-  {children}
-</Card>
-```
+credit_wallets:
+- SELECT: auth.uid() = user_id OR admin
+- UPDATE: solo admin
 
-**Cyber Gradient Button:**
-```tsx
-<Button className="cyber-gradient">
-  Acción
-</Button>
-```
+projects:
+- SELECT: auth.uid() = owner_id OR admin
+- INSERT/UPDATE/DELETE: auth.uid() = owner_id
 
-**Neon Text:**
-```tsx
-<h1 className="neon-text-primary">
-  Título Brillante
-</h1>
-```
+### Secrets Management
+- Variables en .env.local
+- Vercel Environment Variables
+- GitHub tokens encriptados en DB
+- Service role key solo en backend
 
 ---
 
-## 📊 Builder Architecture
+## ⚡ Performance
 
-### Componentes del Builder
+### Frontend
+- Code splitting con dynamic imports
+- Image optimization (Next.js)
+- Tailwind JIT compilation
+- Critical CSS inline
 
-1. **ChatPanel**
-   - Historial de mensajes
-   - Input con submit
-   - Estados de carga
-   - Scroll automático
+### Backend
+- Database indexes en user_id, project_id
+- Query pagination
+- Supabase connection pooling
+- API response compression
 
-2. **PreviewPanel**
-   - Iframe con sandbox
-   - Modos: desktop/tablet/mobile
-   - Refresh manual
-   - Open in new tab
+### CDN
+- Vercel Edge Network (100+ regiones)
+- Static files en edge
+- Automatic DDoS protection
+- DNS con Anycast (NSOne)
 
-3. **FileExplorer**
-   - Árbol de archivos
-   - Búsqueda
-   - Apertura de archivos
-   - Iconos por tipo
-
-4. **VersionHistory**
-   - Lista cronológica
-   - Restaurar versiones
-   - Marcar versión actual
-   - Descripción de cambios
-
-### Flujo de Generación
-
-```
-1. Usuario escribe prompt en ChatPanel
-2. Submit → addMessage(user, content)
-3. API call: /api/ai/generate
-4. Loading state: isProcessing = true
-5. OpenAI genera código
-6. Guardar archivos en DB
-7. addMessage(assistant, response)
-8. Actualizar FileExplorer
-9. Crear nueva versión
-10. PreviewPanel se actualiza
-11. isProcessing = false
-```
+### Monitoring
+- Vercel Analytics (RUM)
+- Web Vitals tracking
+- Database performance (Supabase)
+- Error tracking
 
 ---
 
-## 🚀 Deployment
+## 📊 Métricas Objetivo
 
-### Vercel Setup
+Performance:
+- TTFB: < 200ms
+- FCP: < 1.5s
+- LCP: < 2.5s
+- CLS: < 0.1
 
-**Build Command:**
-```bash
-npm run build
-```
+Availability:
+- Uptime: 99.9%
+- API Response: < 500ms (p95)
+- DB Query: < 100ms (p95)
 
-**Output Directory:**
-```
-.next
-```
-
-**Environment Variables:**
-```bash
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-OPENAI_API_KEY
-VERCEL_TOKEN (opcional)
-```
-
-### Automatic Deployments
-
-- **Production**: Push a `main` → Deploy automático
-- **Preview**: Pull Requests → Preview deployment
-- **Custom Domains**: Configurar en Vercel dashboard
+User Experience:
+- IA Generation: 5-10s
+- GitHub Push: < 30s
+- Deploy: 2-3 min
+- Page Load: < 2s
 
 ---
 
-## 🔧 Services Layer
+## 🚀 Deployment Pipeline
 
-### Patrón de Servicios
-
-Todos los servicios siguen este patrón:
-
-```typescript
-// src/services/exampleService.ts
-
-import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
-
-export async function getResource(id: string): Promise<Resource | null> {
-  const { data, error } = await supabase
-    .from("table")
-    .select("*")
-    .eq("id", id)
-    .single();
-  
-  if (error) {
-    console.error("Error:", error);
-    return null;
-  }
-  
-  return data;
-}
-```
-
-**Principios:**
-- Siempre retornar `null` en error (nunca throw)
-- Log errores en consola
-- Tipos estrictos de Supabase
-- Documentación clara
+1. Push a GitHub
+2. Vercel detecta commit
+3. Build automático
+4. Deploy a preview URL
+5. Production deploy (main branch)
+6. Edge propagation
+7. Live en < 30 segundos
 
 ---
 
-## 📈 Escalabilidad
+## 🔮 Roadmap
 
-### Horizontal Scaling
-
-- **Database**: Supabase escala automáticamente
-- **API Routes**: Serverless, escala con demanda
-- **Frontend**: CDN de Vercel, edge caching
-
-### Optimizaciones
-
-1. **Database Indexes:**
-```sql
-CREATE INDEX idx_projects_user_id ON projects(user_id);
-CREATE INDEX idx_messages_conversation_id ON messages(conversation_id);
-CREATE INDEX idx_transactions_wallet_id ON credit_transactions(wallet_id);
-```
-
-2. **Caching:**
-- React Query para cache de frontend
-- Supabase Realtime para sincronización
-- Edge caching en Vercel
-
-3. **Code Splitting:**
-```tsx
-const AdminPanel = dynamic(() => import("@/pages/admin"), { ssr: false });
-```
+- [ ] Pagos (Stripe/Mercado Pago)
+- [ ] Colaboración en tiempo real
+- [ ] Templates de proyectos
+- [ ] Marketplace de componentes
+- [ ] CI/CD personalizado
+- [ ] A/B testing integrado
+- [ ] Analytics avanzados
+- [ ] Mobile app (React Native)
 
 ---
 
-## 🧪 Testing Strategy
-
-### Unit Tests
-```bash
-npm run test
-```
-
-### E2E Tests
-```bash
-npm run test:e2e
-```
-
-### Test Coverage
-- Services: 80%+
-- Components: 70%+
-- API Routes: 90%+
-
----
-
-## 📚 Documentación Adicional
-
-- **API Reference**: Ver `/docs/api.md`
-- **Component Library**: Ver Storybook
-- **Database Schema**: Ver Supabase Dashboard
-
----
-
-**Última actualización**: 2026-04-13  
-**Versión**: 1.0.0
+Última actualización: 2026-04-13
