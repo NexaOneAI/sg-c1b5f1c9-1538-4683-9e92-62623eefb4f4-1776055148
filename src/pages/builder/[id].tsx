@@ -4,18 +4,62 @@ import Link from "next/link";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { 
+  getProjectById, 
+  getProjectFiles, 
+  getProjectVersions,
+} from "@/services/projectService";
+import { 
+  getOrCreateConversation, 
+  getConversationMessages,
+  addMessage,
+} from "@/services/conversationService";
+import {
+  connectGitHub,
+  disconnectGitHub,
+  getGitHubConnection,
+  listGitHubRepos,
+  connectProjectToRepo,
+  pushToGitHub,
+} from "@/services/githubService";
+import {
+  setCustomSubdomain,
+  deployToVercel,
+  checkSubdomainAvailability,
+  generateSubdomain,
+} from "@/services/deploymentService";
 import { ChatPanel } from "@/components/builder/ChatPanel";
 import { PreviewPanel } from "@/components/builder/PreviewPanel";
 import { FileExplorer } from "@/components/builder/FileExplorer";
 import { VersionHistory } from "@/components/builder/VersionHistory";
-import { supabase } from "@/integrations/supabase/client";
-import { getProject } from "@/services/projectService";
-import { getProjectFiles, getProjectVersions } from "@/services/projectService";
-import { getProjectConversation, createConversation, getConversationMessages, addMessage } from "@/services/conversationService";
-import type { Project, ProjectFile, ProjectVersion } from "@/services/projectService";
-import type { Conversation, Message } from "@/services/conversationService";
-import { ArrowLeft, Loader2, Settings, FileCode, Clock, MessageSquare } from "lucide-react";
+import { 
+  ArrowLeft, 
+  Code2, 
+  FileText, 
+  History, 
+  Sparkles,
+  Loader2,
+  Github,
+  Rocket,
+  Link as LinkIcon,
+  Check,
+  X,
+} from "lucide-react";
 
 type AIModel = "gpt4" | "claude_sonnet" | "claude_opus";
 
@@ -32,22 +76,39 @@ function BuilderContent() {
   const { id } = router.query;
   const [project, setProject] = useState<Project | null>(null);
   const [conversation, setConversation] = useState<Conversation | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<any[]>([]);
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [versions, setVersions] = useState<ProjectVersion[]>([]);
   const [selectedFile, setSelectedFile] = useState<ProjectFile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState("chat");
+  
+  // GitHub state
+  const [showGitHubModal, setShowGitHubModal] = useState(false);
+  const [githubConnected, setGithubConnected] = useState(false);
+  const [githubRepos, setGithubRepos] = useState<any[]>([]);
+  const [selectedRepo, setSelectedRepo] = useState("");
+  const [commitMessage, setCommitMessage] = useState("");
+  const [isPushing, setIsPushing] = useState(false);
+  
+  // Deploy state
+  const [showDeployModal, setShowDeployModal] = useState(false);
+  const [customSubdomain, setCustomSubdomain] = useState("");
+  const [subdomainAvailable, setSubdomainAvailable] = useState<boolean | null>(null);
+  const [isDeploying, setIsDeploying] = useState(false);
+
+  const { toast } = useToast();
 
   useEffect(() => {
-    if (id && typeof id === "string") {
-      loadBuilderData(id);
-    }
+    loadProject();
+    checkGitHubConnection();
   }, [id]);
 
-  async function loadBuilderData(projectId: string) {
-    const projectData = await getProject(projectId);
+  async function loadProject() {
+    if (!id || typeof id !== "string") return;
+
+    const projectData = await getProjectById(id);
     
     if (!projectData) {
       router.push("/dashboard");
@@ -59,10 +120,10 @@ function BuilderContent() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    let conversationData = await getProjectConversation(projectId);
+    let conversationData = await getOrCreateConversation(projectData.id, user.id);
     
     if (!conversationData) {
-      conversationData = await createConversation(projectId, user.id);
+      conversationData = await createConversation(projectData.id, user.id);
     }
 
     if (conversationData) {
@@ -72,13 +133,138 @@ function BuilderContent() {
     }
 
     const [filesData, versionsData] = await Promise.all([
-      getProjectFiles(projectId),
-      getProjectVersions(projectId),
+      getProjectFiles(projectData.id),
+      getProjectVersions(projectData.id),
     ]);
 
     setFiles(filesData);
     setVersions(versionsData);
     setLoading(false);
+  }
+
+  async function checkGitHubConnection() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const connection = await getGitHubConnection(user.id);
+    setGithubConnected(!!connection);
+
+    if (connection) {
+      const repos = await listGitHubRepos(user.id);
+      setGithubRepos(repos);
+    }
+  }
+
+  async function handleConnectGitHub() {
+    await connectGitHub();
+  }
+
+  async function handleDisconnectGitHub() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const success = await disconnectGitHub(user.id);
+    if (success) {
+      setGithubConnected(false);
+      setGithubRepos([]);
+      toast({ title: "✅ GitHub desconectado" });
+    }
+  }
+
+  async function handleConnectRepo() {
+    if (!project || !selectedRepo) return;
+
+    const repo = githubRepos.find(r => r.full_name === selectedRepo);
+    if (!repo) return;
+
+    const updated = await connectProjectToRepo(project.id, repo.html_url, repo.default_branch);
+    
+    if (updated) {
+      setProject(updated);
+      toast({
+        title: "✅ Repositorio conectado",
+        description: `Proyecto vinculado a ${repo.full_name}`,
+      });
+      setShowGitHubModal(false);
+    }
+  }
+
+  async function handlePushToGitHub() {
+    if (!project || !commitMessage.trim()) return;
+
+    setIsPushing(true);
+
+    try {
+      const result = await pushToGitHub(project.id, commitMessage);
+      
+      toast({
+        title: "✅ Push exitoso",
+        description: "Cambios enviados a GitHub",
+      });
+
+      setCommitMessage("");
+      
+      if (result.commitUrl) {
+        window.open(result.commitUrl, "_blank");
+      }
+    } catch (error: any) {
+      toast({
+        title: "❌ Error en push",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+
+    setIsPushing(false);
+  }
+
+  async function handleCheckSubdomain(value: string) {
+    setCustomSubdomain(value);
+    
+    if (value.length < 3) {
+      setSubdomainAvailable(null);
+      return;
+    }
+
+    const available = await checkSubdomainAvailability(value);
+    setSubdomainAvailable(available);
+  }
+
+  async function handleDeploy() {
+    if (!project || !customSubdomain || !subdomainAvailable) return;
+
+    setIsDeploying(true);
+
+    try {
+      const result = await deployToVercel({
+        projectId: project.id,
+        subdomain: customSubdomain,
+        githubRepoUrl: project.github_repo_url || undefined,
+      });
+
+      if (result.success) {
+        toast({
+          title: "✅ Deploy iniciado",
+          description: `Tu app estará disponible en ${result.deploymentUrl}`,
+        });
+
+        setShowDeployModal(false);
+        
+        // Actualizar proyecto
+        const updatedProject = await getProjectById(project.id);
+        if (updatedProject) {
+          setProject(updatedProject);
+        }
+      }
+    } catch (error: any) {
+      toast({
+        title: "❌ Error en deploy",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+
+    setIsDeploying(false);
   }
 
   async function handleSendMessage(content: string, model: AIModel) {
@@ -206,46 +392,315 @@ function BuilderContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="min-h-screen flex items-center justify-center bg-background cyber-background">
+        <div className="text-center space-y-4">
+          <div className="cyber-spinner w-16 h-16 mx-auto" />
+          <p className="text-muted-foreground">Cargando proyecto...</p>
+        </div>
       </div>
     );
   }
 
   if (!project) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background cyber-background">
+        <div className="text-center space-y-4">
+          <p className="text-muted-foreground">Proyecto no encontrado</p>
+          <Button asChild>
+            <Link href="/dashboard">Volver al Dashboard</Link>
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background">
-      <nav className="border-b border-border/50 backdrop-blur-sm bg-background/80 z-50">
-        <div className="px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-background cyber-background">
+      <nav className="border-b border-border/50 backdrop-blur-xl bg-background/60 sticky top-0 z-50 shadow-lg">
+        <div className="px-4 sm:px-6">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" asChild>
+              <Button variant="ghost" size="icon" asChild className="hover:bg-primary/10">
                 <Link href="/dashboard">
                   <ArrowLeft className="h-4 w-4" />
                 </Link>
               </Button>
-              
               <Logo size="sm" />
-              
-              <div className="border-l border-border/50 pl-4">
-                <h1 className="text-lg font-semibold">{project.name}</h1>
-                <p className="text-xs text-muted-foreground">
-                  {project.description || "Sin descripción"}
-                </p>
+              <Separator orientation="vertical" className="h-8 bg-border/50" />
+              <div>
+                <h2 className="font-bold text-lg neon-text-primary font-display">{project.name}</h2>
+                <p className="text-xs text-muted-foreground">Builder</p>
               </div>
             </div>
-            
-            <Button variant="ghost" size="icon">
-              <Settings className="h-4 w-4" />
-            </Button>
+
+            <div className="flex items-center gap-2">
+              {/* GitHub Button */}
+              {githubConnected ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowGitHubModal(true)}
+                  className="border-green-500/50 hover:bg-green-500/10"
+                >
+                  <Github className="w-4 h-4 mr-2" />
+                  GitHub Conectado
+                  <Check className="w-3 h-3 ml-2 text-green-400" />
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleConnectGitHub}
+                  className="border-border/50 hover:bg-primary/10"
+                >
+                  <Github className="w-4 h-4 mr-2" />
+                  Conectar GitHub
+                </Button>
+              )}
+
+              {/* Deploy Button */}
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => {
+                  if (!customSubdomain && project.name) {
+                    setCustomSubdomain(generateSubdomain(project.name));
+                  }
+                  setShowDeployModal(true);
+                }}
+                className="cyber-gradient shadow-glow"
+              >
+                <Rocket className="w-4 h-4 mr-2" />
+                Deploy
+              </Button>
+
+              <Badge className="cyber-gradient">
+                <Sparkles className="w-3 h-3 mr-1" />
+                IA Activa
+              </Badge>
+            </div>
           </div>
         </div>
       </nav>
 
-      <div className="flex-1 flex overflow-hidden">
+      {/* GitHub Modal */}
+      <Dialog open={showGitHubModal} onOpenChange={setShowGitHubModal}>
+        <DialogContent className="glass-panel border-border/50 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2">
+              <Github className="w-5 h-5 text-primary" />
+              Integración con GitHub
+            </DialogTitle>
+            <DialogDescription>
+              {project.github_repo_url 
+                ? "Push tus cambios al repositorio conectado"
+                : "Conecta tu proyecto a un repositorio de GitHub"
+              }
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {!project.github_repo_url ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="repo">Selecciona un Repositorio</Label>
+                  <select
+                    id="repo"
+                    value={selectedRepo}
+                    onChange={(e) => setSelectedRepo(e.target.value)}
+                    className="w-full px-3 py-2 rounded-md glass-panel border-border/50 focus:border-primary/50"
+                  >
+                    <option value="">-- Seleccionar --</option>
+                    {githubRepos.map((repo) => (
+                      <option key={repo.id} value={repo.full_name}>
+                        {repo.full_name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    {githubRepos.length === 0 
+                      ? "No tienes repositorios. Crea uno en GitHub primero."
+                      : `${githubRepos.length} repositorios disponibles`
+                    }
+                  </p>
+                </div>
+
+                <Button 
+                  onClick={handleConnectRepo} 
+                  disabled={!selectedRepo}
+                  className="w-full cyber-gradient"
+                >
+                  <LinkIcon className="w-4 h-4 mr-2" />
+                  Conectar Repositorio
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className="space-y-2 p-4 rounded-lg bg-green-500/10 border border-green-500/30">
+                  <p className="text-sm font-medium text-green-400">Repositorio Conectado</p>
+                  <a 
+                    href={project.github_repo_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-400 hover:underline block"
+                  >
+                    {project.github_repo_url}
+                  </a>
+                  <p className="text-xs text-muted-foreground">
+                    Rama: {project.github_branch || "main"}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="commit">Mensaje del Commit</Label>
+                  <Textarea
+                    id="commit"
+                    value={commitMessage}
+                    onChange={(e) => setCommitMessage(e.target.value)}
+                    placeholder="Describe los cambios realizados..."
+                    rows={3}
+                    className="glass-panel border-border/50"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handlePushToGitHub}
+                    disabled={!commitMessage.trim() || isPushing}
+                    className="flex-1 cyber-gradient"
+                  >
+                    {isPushing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Pushing...
+                      </>
+                    ) : (
+                      <>
+                        <Github className="w-4 h-4 mr-2" />
+                        Push a GitHub
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={handleDisconnectGitHub}
+                    className="border-red-500/50 hover:bg-red-500/10"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deploy Modal */}
+      <Dialog open={showDeployModal} onOpenChange={setShowDeployModal}>
+        <DialogContent className="glass-panel border-border/50 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2">
+              <Rocket className="w-5 h-5 text-accent" />
+              Deploy a Producción
+            </DialogTitle>
+            <DialogDescription>
+              Configura tu subdominio personalizado en nexaoneia.com
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="subdomain">Subdominio</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="subdomain"
+                  value={customSubdomain}
+                  onChange={(e) => handleCheckSubdomain(e.target.value.toLowerCase())}
+                  placeholder="mi-app"
+                  className="glass-panel border-border/50"
+                />
+                <span className="text-sm text-muted-foreground whitespace-nowrap">
+                  .nexaoneia.com
+                </span>
+              </div>
+              
+              {customSubdomain.length >= 3 && (
+                <div className="flex items-center gap-2">
+                  {subdomainAvailable === null ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  ) : subdomainAvailable ? (
+                    <>
+                      <Check className="w-4 h-4 text-green-400" />
+                      <span className="text-xs text-green-400">Disponible</span>
+                    </>
+                  ) : (
+                    <>
+                      <X className="w-4 h-4 text-red-400" />
+                      <span className="text-xs text-red-400">No disponible</span>
+                    </>
+                  )}
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground">
+                Solo letras minúsculas, números y guiones. Mínimo 3 caracteres.
+              </p>
+            </div>
+
+            {project.deployment_url && (
+              <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
+                <p className="text-sm font-medium text-blue-400 mb-1">Deployment Actual</p>
+                <a 
+                  href={project.deployment_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-400 hover:underline block break-all"
+                >
+                  {project.deployment_url}
+                </a>
+                {project.deployment_status && (
+                  <Badge 
+                    variant="outline" 
+                    className="mt-2 text-xs border-blue-500/30"
+                  >
+                    {project.deployment_status}
+                  </Badge>
+                )}
+              </div>
+            )}
+
+            <Button
+              onClick={handleDeploy}
+              disabled={!customSubdomain || !subdomainAvailable || isDeploying}
+              className="w-full cyber-gradient shadow-glow"
+            >
+              {isDeploying ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Desplegando...
+                </>
+              ) : (
+                <>
+                  <Rocket className="w-4 h-4 mr-2" />
+                  Desplegar a {customSubdomain}.nexaoneia.com
+                </>
+              )}
+            </Button>
+
+            {!project.github_repo_url && (
+              <p className="text-xs text-amber-400 flex items-start gap-2">
+                <span>⚠️</span>
+                <span>
+                  Conecta GitHub primero para deploys automáticos con CI/CD
+                </span>
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <main className="flex h-[calc(100vh-4rem)]">
         <div className="w-[400px] flex-shrink-0 hidden lg:block">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
             <TabsList className="grid grid-cols-3 m-2">
@@ -292,7 +747,7 @@ function BuilderContent() {
         <div className="flex-1 overflow-hidden">
           <PreviewPanel projectId={project.id} />
         </div>
-      </div>
+      </main>
     </div>
   );
 }
