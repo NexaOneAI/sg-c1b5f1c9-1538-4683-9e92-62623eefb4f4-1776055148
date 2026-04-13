@@ -136,29 +136,62 @@ export default async function handler(
     let generatedCode;
     let modelUsed = "";
 
-    // Lista de TODOS los modelos a intentar (ordenados por preferencia)
+    // Lista de modelos de OpenAI que SÍ están disponibles en la cuenta del usuario
+    const OPENAI_MODELS = [
+      "gpt-4o",        // Mejor modelo disponible
+      "gpt-4.1",       // GPT-4 versión 4.1
+      "gpt-3.5-1",     // GPT-3.5 versión 1
+      "o3",            // Modelo O3
+      "o3-mini",       // Modelo O3 Mini
+    ];
+
+    // Lista de modelos de Claude a intentar
     const CLAUDE_MODELS = [
-      "claude-3-5-sonnet-20241022",
-      "claude-3-5-sonnet-20240620", 
       "claude-3-sonnet-20240229",
       "claude-3-opus-20240229",
       "claude-3-haiku-20240307",
     ];
 
-    const OPENAI_MODELS = [
-      "gpt-4o-mini",
-      "gpt-4o",
-      "gpt-4-turbo",
-      "gpt-4",
-      "gpt-3.5-turbo",
-      "gpt-3.5-turbo-16k",
-    ];
-
-    // ESTRATEGIA: Probar primero Claude (mejor calidad), luego OpenAI
     let lastError: any = null;
 
-    // INTENTAR CLAUDE PRIMERO
-    if (anthropic && (model === "claude_sonnet" || model === "claude_opus")) {
+    // ESTRATEGIA: Probar primero OpenAI (el usuario tiene modelos disponibles)
+    if (openai) {
+      for (const openaiModel of OPENAI_MODELS) {
+        try {
+          console.log(`🤖 Probando OpenAI: ${openaiModel}`);
+
+          const messages: OpenAI.ChatCompletionMessageParam[] = [
+            { role: "system", content: SYSTEM_PROMPT },
+            ...(context?.previousMessages?.map(m => ({
+              role: m.role as "system" | "user" | "assistant",
+              content: m.content,
+            })) || []),
+            { role: "user", content: fullPrompt },
+          ];
+
+          const completion = await openai.chat.completions.create({
+            model: openaiModel,
+            messages,
+            temperature: 0.7,
+            max_tokens: 4000,
+          });
+
+          generatedCode = JSON.parse(completion.choices[0].message.content || "{}");
+          modelUsed = `OpenAI (${openaiModel})`;
+          
+          console.log(`✅ ${openaiModel} funcionó!`);
+          break; // Salir si funcionó
+
+        } catch (error: any) {
+          console.log(`❌ ${openaiModel} falló:`, error.status, error.message);
+          lastError = error;
+          continue; // Probar siguiente modelo
+        }
+      }
+    }
+
+    // SI OPENAI FALLÓ, INTENTAR CLAUDE
+    if (!generatedCode && anthropic) {
       for (const claudeModel of CLAUDE_MODELS) {
         try {
           console.log(`🤖 Probando Claude: ${claudeModel}`);
@@ -198,47 +231,14 @@ export default async function handler(
       }
     }
 
-    // SI CLAUDE FALLÓ, INTENTAR OPENAI
-    if (!generatedCode && openai) {
-      for (const openaiModel of OPENAI_MODELS) {
-        try {
-          console.log(`🤖 Probando OpenAI: ${openaiModel}`);
-
-          const messages: OpenAI.ChatCompletionMessageParam[] = [
-            { role: "system", content: SYSTEM_PROMPT },
-            ...(context?.previousMessages?.map(m => ({
-              role: m.role as "system" | "user" | "assistant",
-              content: m.content,
-            })) || []),
-            { role: "user", content: fullPrompt },
-          ];
-
-          const completion = await openai.chat.completions.create({
-            model: openaiModel,
-            messages,
-            temperature: 0.7,
-            max_tokens: 4000,
-          });
-
-          generatedCode = JSON.parse(completion.choices[0].message.content || "{}");
-          modelUsed = `OpenAI (${openaiModel})`;
-          
-          console.log(`✅ ${openaiModel} funcionó!`);
-          break; // Salir si funcionó
-
-        } catch (error: any) {
-          console.log(`❌ ${openaiModel} falló:`, error.status, error.message);
-          lastError = error;
-          continue; // Probar siguiente modelo
-        }
-      }
-    }
-
     // SI NINGUNO FUNCIONÓ
     if (!generatedCode) {
       throw new Error(
         `❌ NINGÚN MODELO DE IA DISPONIBLE\n\n` +
         `Último error: ${lastError?.message || "Desconocido"}\n\n` +
+        `Modelos probados:\n` +
+        `OpenAI: ${OPENAI_MODELS.join(", ")}\n` +
+        `Claude: ${CLAUDE_MODELS.join(", ")}\n\n` +
         `SOLUCIÓN:\n` +
         `1. Verifica que tus API keys tengan créditos\n` +
         `2. Claude: https://console.anthropic.com/settings/plans\n` +
