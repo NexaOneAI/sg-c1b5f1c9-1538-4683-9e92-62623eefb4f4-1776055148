@@ -1,66 +1,133 @@
-import Link from "next/link";
-import { Logo } from "@/components/Logo";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Check, Sparkles, Zap, Rocket, ArrowLeft } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Check } from "lucide-react";
+import { Logo } from "@/components/Logo";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 export default function PricingPage() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState<string | null>(null);
+
+  const handleSelectPlan = async (plan: "free" | "pro" | "premium") => {
+    try {
+      setLoading(plan);
+
+      // Obtener sesión actual
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        toast({
+          title: "Autenticación requerida",
+          description: "Debes iniciar sesión para comprar un plan",
+          variant: "destructive",
+        });
+        router.push("/auth/login?redirect=/pricing");
+        return;
+      }
+
+      if (plan === "free") {
+        // Plan free: redirigir al dashboard
+        router.push("/dashboard");
+        return;
+      }
+
+      // Obtener email del usuario
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("id", session.user.id)
+        .single();
+
+      // Crear preferencia de pago
+      const response = await fetch("/api/payments/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: session.user.id,
+          plan,
+          email: profile?.email || session.user.email,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success || !data.initPoint) {
+        throw new Error(data.error || "Error al crear el pago");
+      }
+
+      // Redirigir a Mercado Pago
+      window.location.href = data.initPoint;
+
+    } catch (error: any) {
+      console.error("Error selecting plan:", error);
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo procesar el pago",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(null);
+    }
+  };
+
   const plans = [
     {
+      id: "free",
       name: "Free",
-      description: "Perfecto para empezar",
       price: "$0",
       period: "/mes",
-      credits: "100 créditos mensuales",
-      icon: Sparkles,
+      description: "Perfecto para comenzar",
       features: [
-        "100 créditos por mes",
-        "3 proyectos máximo",
-        "Vista previa en tiempo real",
-        "Generación básica de código",
-        "Soporte por email",
+        "100 créditos mensuales",
+        "3 proyectos activos",
+        "GPT-4 Turbo",
+        "Preview en tiempo real",
+        "Versiones básicas",
+        "Soporte comunitario",
       ],
       cta: "Comenzar Gratis",
       popular: false,
     },
     {
+      id: "pro",
       name: "Pro",
-      description: "Para creadores serios",
-      price: "$29",
+      price: "$29.99",
       period: "/mes",
-      credits: "1,000 créditos mensuales",
-      icon: Zap,
+      description: "Para desarrolladores serios",
       features: [
-        "1,000 créditos por mes",
-        "50 proyectos máximo",
-        "Todas las funciones Free",
-        "Exportación de código",
-        "Control de versiones completo",
-        "Prioridad en soporte",
-        "Integraciones avanzadas",
+        "1,000 créditos mensuales",
+        "50 proyectos activos",
+        "GPT-4 + Claude 3.5 Sonnet",
+        "Preview en tiempo real",
+        "Historial ilimitado de versiones",
+        "Deploy a Vercel",
+        "Soporte por email",
       ],
-      cta: "Actualizar a Pro",
+      cta: "Activar Pro",
       popular: true,
     },
     {
+      id: "premium",
       name: "Premium",
-      description: "Sin límites",
-      price: "$99",
+      price: "$99.99",
       period: "/mes",
-      credits: "Créditos ilimitados",
-      icon: Rocket,
+      description: "Máxima potencia",
       features: [
         "Créditos ilimitados",
         "Proyectos ilimitados",
-        "Todas las funciones Pro",
-        "API access",
-        "Whitelabel disponible",
+        "Todos los modelos IA (GPT-4, Claude Opus)",
+        "Preview en tiempo real",
+        "Historial ilimitado",
+        "Deploy automático",
         "Soporte prioritario 24/7",
-        "Asistencia personalizada",
-        "Early access a features",
+        "Early access a nuevas features",
       ],
-      cta: "Comenzar Premium",
+      cta: "Activar Premium",
       popular: false,
     },
   ];
@@ -150,11 +217,14 @@ export default function PricingPage() {
 
                 <CardFooter>
                   <Button
-                    className={`w-full ${plan.popular ? "cyber-gradient" : ""}`}
-                    variant={plan.popular ? "default" : "outline"}
-                    asChild
+                    onClick={() => handleSelectPlan(plan.id as "free" | "pro" | "premium")}
+                    disabled={loading !== null}
+                    className={plan.popular 
+                      ? "w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity"
+                      : "w-full"
+                    }
                   >
-                    <Link href="/auth/register">{plan.cta}</Link>
+                    {loading === plan.id ? "Procesando..." : plan.cta}
                   </Button>
                 </CardFooter>
               </Card>
