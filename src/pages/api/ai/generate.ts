@@ -138,18 +138,19 @@ export default async function handler(
 
     // Lista de modelos de OpenAI que SÍ están disponibles en la cuenta del usuario
     const OPENAI_MODELS = [
-      "gpt-4o",        // Mejor modelo disponible
-      "gpt-4.1",       // GPT-4 versión 4.1
-      "gpt-3.5-1",     // GPT-3.5 versión 1
-      "o3",            // Modelo O3
-      "o3-mini",       // Modelo O3 Mini
+      "gpt-5.2",       // Modelo solicitado por el usuario
+      "gpt-4o",        // Fallback 1
+      "gpt-4.1",       // Fallback 2
+      "o3",            // Fallback 3
+      "o3-mini",       // Fallback 4
     ];
 
     // Lista de modelos de Claude a intentar
     const CLAUDE_MODELS = [
-      "claude-3-sonnet-20240229",
-      "claude-3-opus-20240229",
-      "claude-3-haiku-20240307",
+      "claude-4.6",    // Modelo solicitado por el usuario
+      "claude-3-opus-20240229",     // Fallback 1
+      "claude-3-sonnet-20240229",   // Fallback 2
+      "claude-3-haiku-20240307",    // Fallback 3
     ];
 
     let lastError: any = null;
