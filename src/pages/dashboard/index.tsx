@@ -4,14 +4,15 @@ import Link from "next/link";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -24,18 +25,20 @@ import {
   Search, 
   Folder, 
   Clock, 
-  MoreVertical,
   Loader2,
   User,
   Settings,
+  CreditCard,
   LogOut,
   Shield,
-  CreditCard,
-  Sparkles
+  Sparkles,
+  Code2,
+  Zap,
+  TrendingUp
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-export default function DashboardPage() {
+export default function Dashboard() {
   return (
     <AuthGuard>
       <DashboardContent />
@@ -46,33 +49,35 @@ export default function DashboardPage() {
 function DashboardContent() {
   const router = useRouter();
   const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
   const [filteredProjects, setFilteredProjects] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [credits, setCredits] = useState(0);
 
   useEffect(() => {
-    loadDashboardData();
+    loadData();
   }, []);
 
   useEffect(() => {
-    const filtered = projects.filter(project =>
-      project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      project.description?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    setFilteredProjects(filtered);
+    if (searchQuery) {
+      const filtered = projects.filter(p => 
+        p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setFilteredProjects(filtered);
+    } else {
+      setFilteredProjects(projects);
+    }
   }, [searchQuery, projects]);
 
-  async function loadDashboardData() {
+  async function loadData() {
     setLoading(true);
 
     const profileData = await getCurrentProfile();
-    if (profileData) {
-      setProfile(profileData);
-    }
+    setProfile(profileData);
 
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -111,13 +116,13 @@ function DashboardContent() {
 
     if (newProject) {
       toast({
-        title: "✅ Proyecto creado",
+        title: "✨ Proyecto creado",
         description: "Redirigiendo al builder...",
       });
       router.push(`/builder/${newProject.id}`);
     } else {
       toast({
-        title: "❌ Error",
+        title: "Error",
         description: "No se pudo crear el proyecto",
         variant: "destructive",
       });
@@ -130,79 +135,101 @@ function DashboardContent() {
     router.push("/");
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  const userInitials = profile?.full_name
+  const initials = profile?.full_name
     ?.split(" ")
     .map((n: string) => n[0])
     .join("")
     .toUpperCase()
     .slice(0, 2) || profile?.email?.slice(0, 2).toUpperCase() || "U";
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background cyber-background">
+        <div className="text-center space-y-4">
+          <div className="cyber-spinner w-16 h-16 mx-auto" />
+          <p className="text-muted-foreground">Cargando tu espacio...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="border-b border-border/50 backdrop-blur-sm bg-background/80 sticky top-0 z-50">
-        <div className="px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-background cyber-background relative overflow-hidden">
+      {/* Animated Grid */}
+      <div className="fixed inset-0 cyber-grid bg-grid opacity-10 pointer-events-none" />
+      
+      {/* Gradient Orbs */}
+      <div className="fixed top-0 left-0 w-[400px] h-[400px] bg-primary/10 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+      <div className="fixed bottom-0 right-0 w-[500px] h-[500px] bg-accent/10 rounded-full blur-[100px] translate-x-1/2 translate-y-1/2 animate-pulse" style={{ animationDelay: "1s" }} />
+
+      {/* Header */}
+      <nav className="border-b border-border/50 backdrop-blur-xl bg-background/60 sticky top-0 z-50 shadow-lg">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <Logo />
             <div className="flex items-center gap-4">
-              <Badge className="cyber-gradient hidden sm:flex">
-                <Sparkles className="w-3 h-3 mr-1" />
+              <Logo size="sm" />
+              <Badge className="cyber-gradient hidden sm:flex items-center gap-1">
+                <Sparkles className="w-3 h-3" />
                 {credits.toLocaleString()} créditos
               </Badge>
-              
-              {profile?.role === "superadmin" && (
-                <Button variant="outline" size="sm" asChild>
-                  <Link href="/admin">
-                    <Shield className="w-4 h-4 mr-2" />
-                    Admin
-                  </Link>
-                </Button>
-              )}
+            </div>
 
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="sm:hidden">
+                {credits}
+              </Badge>
+              
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="relative">
-                    <Avatar className="h-8 w-8 border border-primary/50">
-                      <AvatarFallback className="bg-primary/20 text-primary text-xs">
-                        {userInitials}
+                  <Button variant="ghost" size="icon" className="relative group">
+                    <Avatar className="h-9 w-9 border-2 border-primary/50 group-hover:border-primary transition-colors neon-glow">
+                      <AvatarImage src={profile?.avatar_url} />
+                      <AvatarFallback className="bg-primary/20 text-primary font-semibold">
+                        {initials}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="glass-panel border-border/50 w-56">
-                  <div className="px-2 py-1.5">
-                    <p className="text-sm font-medium">{profile?.full_name || "Usuario"}</p>
-                    <p className="text-xs text-muted-foreground">{profile?.email}</p>
-                  </div>
+                <DropdownMenuContent align="end" className="w-56 glass-panel border-border/50">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">{profile?.full_name || "Usuario"}</p>
+                      <p className="text-xs leading-none text-muted-foreground">{profile?.email}</p>
+                    </div>
+                  </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
                     <Link href="/profile" className="cursor-pointer">
-                      <User className="w-4 h-4 mr-2" />
+                      <User className="mr-2 h-4 w-4" />
                       Mi Perfil
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/settings" className="cursor-pointer">
-                      <Settings className="w-4 h-4 mr-2" />
+                      <Settings className="mr-2 h-4 w-4" />
                       Configuración
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/pricing" className="cursor-pointer">
-                      <CreditCard className="w-4 h-4 mr-2" />
+                      <CreditCard className="mr-2 h-4 w-4" />
                       Planes y Créditos
                     </Link>
                   </DropdownMenuItem>
+                  {profile?.role === "superadmin" && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin" className="cursor-pointer text-primary">
+                          <Shield className="mr-2 h-4 w-4" />
+                          Panel Admin
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
+                  )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut} className="text-red-500 cursor-pointer">
-                    <LogOut className="w-4 h-4 mr-2" />
+                  <DropdownMenuItem onClick={handleSignOut} className="text-red-500 focus:text-red-500">
+                    <LogOut className="mr-2 h-4 w-4" />
                     Cerrar Sesión
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -212,96 +239,165 @@ function DashboardContent() {
         </div>
       </nav>
 
-      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2 neon-text-primary font-['Orbitron']">
-            Mis Proyectos
-          </h1>
-          <p className="text-muted-foreground">
-            Construye aplicaciones web con IA en minutos
-          </p>
+      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+        {/* Welcome Section */}
+        <div className="mb-12 animate-fade-in">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div>
+              <h1 className="text-4xl sm:text-5xl font-display font-bold mb-2 neon-text-primary">
+                Bienvenido, {profile?.full_name?.split(" ")[0] || "Desarrollador"}
+              </h1>
+              <p className="text-muted-foreground text-lg">
+                Construye el futuro con IA • {projects.length} {projects.length === 1 ? "proyecto activo" : "proyectos activos"}
+              </p>
+            </div>
+            
+            <Button 
+              onClick={handleCreateProject}
+              disabled={creating}
+              size="lg"
+              className="cyber-gradient hover:opacity-90 shadow-glow-lg group relative overflow-hidden"
+            >
+              {creating ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Creando...
+                </>
+              ) : (
+                <>
+                  <Plus className="mr-2 h-5 w-5 group-hover:rotate-90 transition-transform" />
+                  Nuevo Proyecto
+                </>
+              )}
+              <span className="absolute inset-0 bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </Button>
+          </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="relative flex-1">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8 animate-slide-in">
+          <Card className="glass-panel border-border/50 hover:border-primary/30 transition-all duration-300 group">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Proyectos Activos</p>
+                  <p className="text-3xl font-bold font-display neon-text-primary">{projects.length}</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-glow">
+                  <Folder className="h-6 w-6 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-panel border-border/50 hover:border-accent/30 transition-all duration-300 group">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Créditos Disponibles</p>
+                  <p className="text-3xl font-bold font-display neon-text-accent">{credits.toLocaleString()}</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-glow-accent">
+                  <Sparkles className="h-6 w-6 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-panel border-border/50 hover:border-green-500/30 transition-all duration-300 group">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Generaciones IA</p>
+                  <p className="text-3xl font-bold font-display text-green-400">∞</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-glow">
+                  <Code2 className="h-6 w-6 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-panel border-border/50 hover:border-yellow-500/30 transition-all duration-300 group">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Preview en Vivo</p>
+                  <p className="text-3xl font-bold font-display text-yellow-400">24/7</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-glow">
+                  <Zap className="h-6 w-6 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Search and Filter */}
+        <div className="mb-6 animate-slide-in" style={{ animationDelay: "0.1s" }}>
+          <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar proyectos..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              className="pl-10 glass-panel border-border/50 focus:border-primary/50"
             />
           </div>
-          <Button
-            onClick={handleCreateProject}
-            disabled={creating}
-            className="cyber-gradient"
-          >
-            {creating ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Creando...
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4 mr-2" />
-                Crear Proyecto
-              </>
-            )}
-          </Button>
         </div>
 
+        {/* Projects Grid */}
         {filteredProjects.length === 0 ? (
-          <Card className="glass-panel border-border/50">
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <Folder className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
-              <h3 className="text-lg font-semibold mb-2">
-                {searchQuery ? "No se encontraron proyectos" : "No tienes proyectos"}
-              </h3>
-              <p className="text-muted-foreground text-center mb-6">
-                {searchQuery
-                  ? "Intenta con otro término de búsqueda"
-                  : "Crea tu primer proyecto y empieza a construir con IA"}
-              </p>
-              {!searchQuery && (
-                <Button onClick={handleCreateProject} disabled={creating} className="cyber-gradient">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Crear Primer Proyecto
-                </Button>
-              )}
+          <Card className="glass-panel border-border/50 animate-scale-in">
+            <CardContent className="pt-12 pb-12">
+              <div className="text-center">
+                <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Folder className="h-10 w-10 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2 font-display">
+                  {searchQuery ? "No se encontraron proyectos" : "Comienza tu primer proyecto"}
+                </h3>
+                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                  {searchQuery 
+                    ? `No hay proyectos que coincidan con "${searchQuery}"`
+                    : "Crea una aplicación web completa con IA en minutos. Solo describe lo que necesitas y Nexa One lo construirá para ti."
+                  }
+                </p>
+                {!searchQuery && (
+                  <Button 
+                    onClick={handleCreateProject}
+                    disabled={creating}
+                    className="cyber-gradient shadow-glow"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Crear Primer Proyecto
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProjects.map((project) => (
-              <Card
-                key={project.id}
-                className="glass-panel border-border/50 hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/20 cursor-pointer group"
+            {filteredProjects.map((project, index) => (
+              <Card 
+                key={project.id} 
+                className="glass-panel border-border/50 hover:border-primary/30 group cursor-pointer transition-all duration-300 hover-lift animate-scale-in"
+                style={{ animationDelay: `${index * 0.05}s` }}
                 onClick={() => router.push(`/builder/${project.id}`)}
               >
                 <CardHeader>
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex-1">
-                      <CardTitle className="group-hover:neon-text-primary transition-colors">
+                      <CardTitle className="text-lg font-display mb-1 group-hover:text-primary transition-colors line-clamp-1">
                         {project.name}
                       </CardTitle>
-                      <CardDescription className="mt-2 line-clamp-2">
+                      <CardDescription className="line-clamp-2">
                         {project.description || "Sin descripción"}
                       </CardDescription>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="glass-panel border-border/50">
-                        <DropdownMenuItem>Renombrar</DropdownMenuItem>
-                        <DropdownMenuItem>Duplicar</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-500">Eliminar</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center group-hover:scale-110 transition-transform shadow-glow shrink-0">
+                      <Code2 className="h-5 w-5 text-white" />
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -313,9 +409,11 @@ function DashboardContent() {
                         month: "short"
                       })}
                     </div>
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-xs border-primary/30">
                       {project.framework || "React"}
                     </Badge>
+                    <div className="flex-1" />
+                    <TrendingUp className="h-3 w-3 text-green-500" />
                   </div>
                 </CardContent>
               </Card>
