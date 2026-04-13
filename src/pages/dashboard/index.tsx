@@ -40,35 +40,58 @@ function DashboardContent() {
   }, []);
 
   async function loadDashboardData() {
-    const [profileData, walletData] = await Promise.all([
-      getCurrentProfile(),
-      supabase.auth.getUser().then(({ data: { user } }) => user ? getCreditWallet(user.id) : null),
-    ]);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        router.push("/auth/login");
+        return;
+      }
 
-    setProfile(profileData);
-    setWallet(walletData);
+      const [profileData, walletData] = await Promise.all([
+        getCurrentProfile(),
+        getCreditWallet(user.id),
+      ]);
 
-    if (profileData) {
-      const projectsData = await getUserProjects(profileData.id);
-      setProjects(projectsData);
+      console.log("Dashboard data loaded:", { profileData, walletData });
+
+      setProfile(profileData);
+      setWallet(walletData);
+
+      if (profileData) {
+        const projectsData = await getUserProjects(profileData.id);
+        console.log("Projects loaded:", projectsData);
+        setProjects(projectsData);
+      }
+    } catch (error) {
+      console.error("Error loading dashboard:", error);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   async function handleCreateProject() {
-    if (!profile) return;
+    if (!profile) {
+      console.error("No profile found");
+      return;
+    }
 
     setCreatingProject(true);
-    const project = await createProject(profile.id, {
-      name: "Nuevo Proyecto",
-      description: "Proyecto sin descripción",
-      status: "active",
-    });
+    try {
+      const project = await createProject(profile.id, {
+        name: "Nuevo Proyecto",
+        description: "Proyecto sin descripción",
+        status: "active",
+      });
 
-    if (project) {
-      router.push(`/builder/${project.id}`);
-    } else {
+      console.log("Project created:", project);
+
+      if (project) {
+        router.push(`/builder/${project.id}`);
+      }
+    } catch (error) {
+      console.error("Error creating project:", error);
+    } finally {
       setCreatingProject(false);
     }
   }
