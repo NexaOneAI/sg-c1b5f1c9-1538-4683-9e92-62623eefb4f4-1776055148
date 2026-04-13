@@ -1,331 +1,575 @@
-# ✅ Verificación Completa de Nexa One
+# ✅ Verificación de Configuración - Nexa One
 
-**Fecha:** 2026-04-13
-**Estado:** TODOS LOS SISTEMAS OPERATIVOS
+Esta guía te ayuda a verificar que toda la configuración esté correcta antes de usar Nexa One en producción.
 
----
+## 📋 Checklist de Verificación
 
-## 🎯 PWA - Progressive Web App
+### 1. Base de Datos (Supabase)
 
-### Implementación
-- ✅ **Manifest.json** - Configurado con todos los metadatos
-- ✅ **Service Worker** - Implementación nativa sin dependencias
-- ✅ **Iconos** - favicon.png (192x192) y logo.png (512x512)
-- ✅ **Meta Tags** - Theme color, apple-mobile-web-app
-- ✅ **Offline** - Cache de rutas principales (/dashboard, /auth/login)
-- ✅ **Instalable** - Cumple todos los criterios de PWA
+**Tablas Requeridas:**
 
-### Funcionalidades PWA
-- ✅ Instalable desde navegador (Add to Home Screen)
-- ✅ Funciona offline (páginas cacheadas)
-- ✅ Splash screen personalizado
-- ✅ Iconos adaptables iOS/Android
-- ✅ Theme color personalizado (#A855F7)
+```sql
+-- Verificar que todas las tablas existen
+SELECT table_name 
+FROM information_schema.tables 
+WHERE table_schema = 'public'
+ORDER BY table_name;
+```
 
----
+**Debería mostrar:**
+- ✅ `admin_settings`
+- ✅ `conversations`
+- ✅ `conversation_messages`
+- ✅ `credit_transactions`
+- ✅ `credit_wallets`
+- ✅ `deployment_logs`
+- ✅ `github_connections`
+- ✅ `profiles`
+- ✅ `projects`
+- ✅ `project_files`
+- ✅ `project_versions`
+- ✅ `subscriptions`
 
-## 🔐 Autenticación
+**Políticas RLS:**
 
-### Registro
-- ✅ Formulario validado (email, password, nombre)
-- ✅ Trigger automático crea perfil + wallet + suscripción
-- ✅ 100 créditos gratis al registrarse
-- ✅ Plan Free activado automáticamente
-- ✅ Feedback visual del progreso
-- ✅ Redirección automática al dashboard
+```sql
+-- Verificar que RLS está habilitado
+SELECT tablename, rowsecurity 
+FROM pg_tables 
+WHERE schemaname = 'public' 
+AND rowsecurity = true;
+```
 
-### Login
-- ✅ Autenticación con Supabase Auth
-- ✅ Manejo de errores claro
-- ✅ Sesión persistente
-- ✅ Redirección al dashboard
-- ✅ Link a recuperación de contraseña
-
-### AuthGuard
-- ✅ Protección de rutas privadas
-- ✅ Redirección a login si no autenticado
-- ✅ Carga de sesión al iniciar
+**Todas las tablas deben tener `rowsecurity = true`**
 
 ---
 
-## 📊 Dashboard
+### 2. Autenticación
 
-### Funcionalidades
-- ✅ Lista de proyectos del usuario
-- ✅ Buscador en tiempo real
-- ✅ Crear nuevo proyecto
-- ✅ Indicador de créditos disponibles
-- ✅ Navegación a Settings y Admin (si es admin)
-- ✅ Estado vacío cuando no hay proyectos
-- ✅ Tarjetas con metadata (fecha actualización)
-- ✅ Logout funcional
+**Verificar Trigger de Auto-Setup:**
 
-### UX
-- ✅ Carga con skeleton/spinner
-- ✅ Mensajes de error claros
-- ✅ Responsive design
-- ✅ Estados de carga en botones
+```sql
+-- Verificar que el trigger existe
+SELECT trigger_name, event_manipulation, event_object_table
+FROM information_schema.triggers
+WHERE trigger_name = 'on_auth_user_created';
+```
 
----
+**Debería mostrar:**
+- ✅ `on_auth_user_created` en tabla `users`
 
-## 🛠️ Builder
+**Probar Registro:**
 
-### Panel de Chat
-- ✅ Selector de modelo IA (GPT-4, Claude)
-- ✅ Indicador de costo por mensaje
-- ✅ Historial de conversación
-- ✅ Auto-scroll a nuevos mensajes
-- ✅ Estados de carga visual
-- ✅ Metadata de mensajes (modelo usado, créditos)
-- ✅ Envío con Enter (Shift+Enter para nueva línea)
+1. Abre incógnito en tu navegador
+2. Ve a `/auth/register`
+3. Regístrate con un email de prueba
+4. Verifica que se crea automáticamente:
+   - ✅ Perfil en `profiles`
+   - ✅ Wallet en `credit_wallets` con 100 créditos
+   - ✅ Suscripción Free en `subscriptions`
 
-### Explorador de Archivos
-- ✅ Lista de archivos del proyecto
-- ✅ Selección de archivo
-- ✅ Estructura jerárquica
+**SQL para verificar:**
 
-### Historial de Versiones
-- ✅ Lista de versiones
-- ✅ Marcar versión actual
-- ✅ Restaurar versión (funcionalidad preparada)
-
-### Panel de Preview
-- ✅ Vista previa en tiempo real
-- ✅ Refresh manual
-- ✅ Deploy a Vercel (endpoint preparado)
+```sql
+SELECT 
+  p.email,
+  p.full_name,
+  w.balance as credits,
+  s.plan_tier,
+  s.status
+FROM profiles p
+LEFT JOIN credit_wallets w ON w.user_id = p.id
+LEFT JOIN subscriptions s ON s.user_id = p.id
+WHERE p.email = 'tu-email-de-prueba@example.com';
+```
 
 ---
 
-## 💳 Sistema de Créditos
+### 3. Créditos y Transacciones
 
-### Wallet
-- ✅ Creación automática al registrarse
-- ✅ 100 créditos iniciales (Plan Free)
-- ✅ Descuento por uso de IA
-- ✅ Transacciones registradas
+**Verificar Wallet:**
 
-### Planes
-- ✅ **Free**: 100 créditos/mes, 3 proyectos
-- ✅ **Pro**: 1,000 créditos/mes, 50 proyectos  
-- ✅ **Premium**: Ilimitado
+```sql
+-- Ver todos los wallets
+SELECT 
+  w.user_id,
+  p.email,
+  w.balance,
+  w.created_at
+FROM credit_wallets w
+JOIN profiles p ON p.id = w.user_id
+ORDER BY w.created_at DESC;
+```
 
-### Costos IA
-- ✅ GPT-4 Turbo: 10 créditos
-- ✅ Claude 3.5 Sonnet: 20 créditos
-- ✅ Claude 3 Opus: 40 créditos
+**Verificar Transacciones:**
 
----
+```sql
+-- Ver transacciones recientes
+SELECT 
+  ct.amount,
+  ct.type,
+  ct.description,
+  ct.created_at,
+  p.email
+FROM credit_transactions ct
+JOIN credit_wallets cw ON cw.id = ct.wallet_id
+JOIN profiles p ON p.id = cw.user_id
+ORDER BY ct.created_at DESC
+LIMIT 10;
+```
 
-## 💰 Pagos (Mercado Pago)
+**Probar Descuento de Créditos:**
 
-### Integración
-- ✅ Endpoint `/api/payments/create`
-- ✅ Webhook `/api/payments/webhook`
-- ✅ Creación de preferencias de pago
-- ✅ Verificación de firma HMAC
-- ✅ Procesamiento de pagos aprobados
-- ✅ Activación automática de suscripción
-- ✅ Asignación de créditos
-
-### Flujo de Compra
-1. ✅ Usuario selecciona plan en /pricing
-2. ✅ Se crea preferencia en Mercado Pago
-3. ✅ Redirección a checkout
-4. ✅ Webhook procesa el pago
-5. ✅ Se activa suscripción y asignan créditos
-
----
-
-## 👤 Configuración de Usuario
-
-### Perfil
-- ✅ Editar nombre completo
-- ✅ Avatar URL
-- ✅ Email (solo lectura)
-- ✅ Badge de rol (user/admin)
-
-### Facturación
-- ✅ Ver créditos disponibles
-- ✅ Link a comprar más créditos
-- ✅ Historial de transacciones (preparado)
-
-### Seguridad
-- ✅ Cambiar contraseña (preparado)
-- ✅ Logout
-- ✅ Notificaciones (preparado)
+1. Crea un proyecto
+2. Abre el Builder
+3. Envía un mensaje al chat IA
+4. Verifica que:
+   - ✅ Se descuentan 10 créditos
+   - ✅ Aparece transacción en `credit_transactions`
+   - ✅ Balance se actualiza en tiempo real
 
 ---
 
-## 🔧 Panel de Administración
+### 4. GitHub Integration
 
-### Gestión de Usuarios
-- ✅ Lista completa de usuarios
-- ✅ Buscador
-- ✅ Ver créditos, plan, proyectos
-- ✅ Ajustar créditos manualmente (+100, -50)
-- ✅ Ver rol (user/admin)
+**Verificar Tablas:**
 
-### Gestión de Pagos
-- ✅ Registrar pago manual
-- ✅ Seleccionar usuario y plan
-- ✅ Configurar monto y método
-- ✅ Activar suscripción manualmente
-- ✅ Historial completo de pagos
-- ✅ Ver estado (completado/pendiente)
+```sql
+-- Ver conexiones de GitHub
+SELECT 
+  gc.github_username,
+  gc.access_token IS NOT NULL as has_token,
+  p.email,
+  gc.created_at
+FROM github_connections gc
+JOIN profiles p ON p.id = gc.user_id;
+```
 
-### Acceso
-- ✅ Solo usuarios con rol admin/superadmin
-- ✅ Protegido por AuthGuard
+**Probar OAuth Flow:**
 
----
+1. Ve al Builder de un proyecto
+2. Click en "Conectar GitHub"
+3. Autoriza en GitHub
+4. Verifica que:
+   - ✅ Te redirige de vuelta al Builder
+   - ✅ Ves tus repositorios listados
+   - ✅ Aparece registro en `github_connections`
 
-## 🗄️ Base de Datos
+**Verificar Variables de Entorno:**
 
-### Tablas Principales
-- ✅ **profiles** - Datos de usuario
-- ✅ **credit_wallets** - Balance de créditos
-- ✅ **credit_transactions** - Historial
-- ✅ **subscriptions** - Planes activos
-- ✅ **projects** - Proyectos de usuario
-- ✅ **project_files** - Archivos del proyecto
-- ✅ **project_versions** - Control de versiones
-- ✅ **conversations** - Chats con IA
-- ✅ **messages** - Mensajes del chat
-- ✅ **payments** - Transacciones de pago
+```bash
+# En terminal o código
+echo $GITHUB_CLIENT_ID
+echo $GITHUB_CLIENT_SECRET
+echo $GITHUB_REDIRECT_URI
+```
 
-### Triggers
-- ✅ **auto_setup_new_user** - Setup completo al registrarse
-- ✅ **handle_new_user** - Crear perfil automático
-- ✅ Backfill de usuarios existentes sin wallet
-
-### RLS (Row Level Security)
-- ✅ Todas las tablas tienen RLS habilitado
-- ✅ Políticas SELECT/INSERT/UPDATE/DELETE configuradas
-- ✅ Acceso solo a datos propios del usuario
-- ✅ Admin puede ver todo (role='admin')
+**Deben estar configuradas y ser correctas**
 
 ---
 
-## 🎨 Diseño
+### 5. Deployments y Subdominios
 
-### Sistema de Diseño
-- ✅ **Paleta Cyber Premium**
-  - Primary: #A855F7 (Púrpura neón)
-  - Accent: #06B6D4 (Cyan eléctrico)
-  - Background: #0A0A0F (Oscuro profundo)
-- ✅ **Tipografía**
-  - Headings: Orbitron (futurista)
-  - Body: Inter (limpio)
-- ✅ **Efectos**
-  - Glassmorphism en cards
-  - Glows neón sutiles
-  - Gradientes animados en CTAs
-  - Bordes luminosos
+**Verificar Configuración DNS:**
 
-### Componentes UI
-- ✅ Shadcn/ui completamente integrado
-- ✅ Componentes personalizados (Logo, AuthGuard)
-- ✅ Temas dark mode nativo
-- ✅ Responsive en mobile/tablet/desktop
+```bash
+# Verificar dominio principal
+dig nexaoneia.com A
 
----
+# Verificar wildcard
+dig test.nexaoneia.com CNAME
+dig random.nexaoneia.com CNAME
 
-## 🔌 APIs Externas
+# Deberían apuntar a Vercel
+```
 
-### OpenAI
-- ✅ Endpoint `/api/ai/generate`
-- ✅ Soporte GPT-4 Turbo
-- ✅ Descuento automático de créditos
-- ✅ Generación de código
-- ✅ Contexto de conversación
+**Verificar Deployment Logs:**
 
-### Vercel Deploy
-- ✅ Endpoint `/api/projects/deploy`
-- ✅ Deploy automático preparado
-- ✅ Configuración de proyecto
+```sql
+-- Ver deployments recientes
+SELECT 
+  dl.project_id,
+  p.name as project_name,
+  dl.subdomain,
+  dl.deployment_url,
+  dl.status,
+  dl.created_at
+FROM deployment_logs dl
+JOIN projects p ON p.id = dl.project_id
+ORDER BY dl.created_at DESC;
+```
 
-### Mercado Pago
-- ✅ Creación de preferencias
-- ✅ Webhook HMAC verificado
-- ✅ Procesamiento seguro
+**Probar Deploy:**
 
----
+1. Crea un proyecto
+2. Builder → Click "Deploy"
+3. Subdominio: `test-deployment`
+4. Click "Desplegar"
+5. Verifica que:
+   - ✅ Se crea deployment en Vercel
+   - ✅ Aparece log en `deployment_logs`
+   - ✅ URL funciona: `https://test-deployment.nexaoneia.com`
 
-## 🧪 Testing
+**Verificar Variables de Entorno:**
 
-### Verificaciones Realizadas
-- ✅ Build sin errores (TypeScript, ESLint)
-- ✅ Base de datos integridad 100%
-- ✅ RLS políticas funcionando
-- ✅ Triggers ejecutándose correctamente
-- ✅ Todos los flujos críticos validados
-- ✅ PWA instalable y funcional
-
-### Métricas
-- 📊 0 errores de build
-- 📊 0 usuarios sin configurar
-- 📊 100% integridad de datos
-- 📊 100% cobertura de flujos principales
+```bash
+echo $VERCEL_TOKEN
+echo $NEXT_PUBLIC_BASE_DOMAIN
+```
 
 ---
 
-## 🚀 Deploy
+### 6. OpenAI Integration
 
-### Preparación para Producción
-- ✅ Variables de entorno configuradas (.env.example)
-- ✅ Supabase conectado y funcionando
-- ✅ Configuración de dominio lista (vercel.json)
-- ✅ Service Worker para PWA
-- ✅ Manifest.json optimizado
+**Verificar API Key:**
 
-### Checklist Pre-Deploy
-- ✅ Build exitoso
-- ✅ Variables de entorno configuradas
-- ✅ Base de datos migrada
-- ✅ Políticas RLS activas
-- ✅ Webhooks configurados
+```bash
+# Verificar que la key existe
+echo $OPENAI_API_KEY | head -c 20
 
----
+# Debería empezar con: sk-proj-...
+```
 
-## 📱 PWA - Instalación
+**Probar Generación de Código:**
 
-### Cómo Instalar
-1. Abre la app en Chrome/Edge/Safari
-2. Menú → "Instalar Nexa One" o "Add to Home Screen"
-3. La app se instalará como app nativa
-4. Icono en escritorio/home screen
+1. Ve al Builder
+2. Escribe: "Crea un botón con gradiente"
+3. Verifica que:
+   - ✅ IA responde en 5-10 segundos
+   - ✅ Se genera código
+   - ✅ Se crean archivos en `project_files`
+   - ✅ Se descuentan créditos
 
-### Características PWA
-- ✅ Funciona sin conexión (rutas cacheadas)
-- ✅ Actualizaciones automáticas del service worker
-- ✅ Experiencia de app nativa
-- ✅ Push notifications preparado (futuro)
+**Verificar Costos Configurados:**
 
----
+```sql
+-- Ver configuración de costos de IA
+SELECT * FROM admin_settings WHERE key = 'ai_model_costs';
+```
 
-## ✅ CONCLUSIÓN
+**Debería mostrar:**
 
-**Estado General: 100% FUNCIONAL**
-
-Todos los sistemas críticos están operativos:
-- ✅ Autenticación y registro
-- ✅ Dashboard y proyectos
-- ✅ Builder con IA
-- ✅ Sistema de créditos
-- ✅ Pagos (Mercado Pago)
-- ✅ Panel de administración
-- ✅ PWA completamente funcional
-- ✅ Base de datos con integridad total
-
-**La aplicación está lista para uso en producción.**
+```json
+{
+  "gpt4": { "cost": 10 },
+  "claude_sonnet": { "cost": 20 },
+  "claude_opus": { "cost": 40 }
+}
+```
 
 ---
 
-**Próximas Mejoras Sugeridas:**
-1. Implementar recuperación de contraseña
-2. Agregar más proveedores de pago (Stripe)
-3. Notificaciones push
-4. Más modelos IA (Gemini, Llama)
-5. Colaboración en proyectos
-6. Exportar código completo
-7. Analytics y métricas de uso
+### 7. Proyectos y Archivos
+
+**Verificar Creación de Proyecto:**
+
+```sql
+-- Ver proyectos recientes
+SELECT 
+  p.id,
+  p.name,
+  p.owner_id,
+  pr.email as owner_email,
+  p.status,
+  p.created_at
+FROM projects p
+JOIN profiles pr ON pr.id = p.owner_id
+ORDER BY p.created_at DESC
+LIMIT 5;
+```
+
+**Verificar Archivos:**
+
+```sql
+-- Ver archivos de un proyecto
+SELECT 
+  pf.file_name,
+  pf.file_path,
+  pf.file_type,
+  LENGTH(pf.content) as content_size,
+  pf.created_at
+FROM project_files pf
+WHERE pf.project_id = 'tu-project-id'
+ORDER BY pf.created_at DESC;
+```
+
+**Verificar Versiones:**
+
+```sql
+-- Ver versiones de un proyecto
+SELECT 
+  pv.version_number,
+  pv.name,
+  pv.is_current,
+  pv.created_at
+FROM project_versions pv
+WHERE pv.project_id = 'tu-project-id'
+ORDER BY pv.created_at DESC;
+```
+
+---
+
+### 8. Panel de Administración
+
+**Verificar Rol de Superadmin:**
+
+```sql
+-- Ver admins
+SELECT email, role, created_at
+FROM profiles
+WHERE role IN ('admin', 'superadmin')
+ORDER BY created_at DESC;
+```
+
+**Probar Panel Admin:**
+
+1. Inicia sesión con cuenta superadmin
+2. Ve a `/admin`
+3. Verifica que:
+   - ✅ Ves todos los usuarios
+   - ✅ Puedes ajustar créditos
+   - ✅ Ves estadísticas del sistema
+   - ✅ Puedes buscar usuarios
+
+**Verificar Permisos:**
+
+```sql
+-- Verificar políticas RLS para admin
+SELECT * FROM pg_policies 
+WHERE tablename = 'credit_wallets' 
+AND policyname LIKE '%admin%';
+```
+
+---
+
+### 9. Variables de Entorno Completas
+
+**Checklist de Variables:**
+
+```bash
+# Supabase
+✅ NEXT_PUBLIC_SUPABASE_URL
+✅ NEXT_PUBLIC_SUPABASE_ANON_KEY
+✅ SUPABASE_SERVICE_ROLE_KEY
+
+# OpenAI
+✅ OPENAI_API_KEY
+
+# GitHub
+✅ GITHUB_CLIENT_ID
+✅ GITHUB_CLIENT_SECRET
+✅ GITHUB_REDIRECT_URI
+
+# Vercel
+✅ VERCEL_TOKEN
+
+# Site
+✅ NEXT_PUBLIC_SITE_URL
+✅ NEXT_PUBLIC_BASE_DOMAIN
+```
+
+**Verificar desde Código:**
+
+```typescript
+// En cualquier archivo .tsx
+console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
+console.log("Site URL:", process.env.NEXT_PUBLIC_SITE_URL);
+console.log("Base Domain:", process.env.NEXT_PUBLIC_BASE_DOMAIN);
+```
+
+---
+
+### 10. SSL y HTTPS
+
+**Verificar Certificados:**
+
+```bash
+# Dominio principal
+openssl s_client -connect nexaoneia.com:443 -servername nexaoneia.com < /dev/null 2>/dev/null | openssl x509 -noout -dates
+
+# Subdominio wildcard
+openssl s_client -connect test.nexaoneia.com:443 -servername test.nexaoneia.com < /dev/null 2>/dev/null | openssl x509 -noout -dates
+```
+
+**Debería mostrar:**
+- ✅ Certificado válido
+- ✅ Issuer: Let's Encrypt
+- ✅ Válido hasta fecha futura
+
+**Verificar desde Browser:**
+
+1. Ve a https://nexaoneia.com
+2. Click en el candado (🔒)
+3. Verifica:
+   - ✅ Certificado válido
+   - ✅ HTTPS activo
+   - ✅ No hay errores de seguridad
+
+---
+
+### 11. Performance y Logs
+
+**Verificar Logs de Servidor:**
+
+```bash
+# En Vercel
+# Dashboard → Tu Proyecto → Logs (en tiempo real)
+
+# Busca:
+✅ No hay errores 500
+✅ No hay errores de CORS
+✅ No hay errores de autenticación
+✅ Respuestas < 1 segundo
+```
+
+**Verificar Performance:**
+
+```bash
+# Lighthouse Score (desde Chrome DevTools)
+# Objetivo:
+✅ Performance: > 80
+✅ Accessibility: > 90
+✅ Best Practices: > 90
+✅ SEO: > 90
+```
+
+---
+
+## 🚨 Problemas Comunes
+
+### Error: "No se pudo verificar tu saldo de créditos"
+
+**Verificar:**
+
+```sql
+-- Usuario tiene wallet?
+SELECT w.* 
+FROM credit_wallets w
+JOIN profiles p ON p.id = w.user_id
+WHERE p.email = 'tu-email@example.com';
+```
+
+**Solución:**
+
+```sql
+-- Crear wallet manualmente si falta
+INSERT INTO credit_wallets (user_id, balance)
+VALUES ('tu-user-id', 100);
+```
+
+---
+
+### Error: "GitHub OAuth redirect mismatch"
+
+**Verificar:**
+1. GitHub OAuth App → Settings
+2. Callback URL debe ser EXACTAMENTE: `https://nexaoneia.com/api/github/callback`
+3. Sin trailing slash
+
+---
+
+### Error: "Subdominio no funciona"
+
+**Verificar DNS:**
+
+```bash
+dig *.nexaoneia.com CNAME
+```
+
+**Debería mostrar:**
+```
+*.nexaoneia.com. 300 IN CNAME cname.vercel-dns.com.
+```
+
+**Si no aparece:**
+1. Ve a NSOne
+2. Agrega registro CNAME wildcard
+3. Espera 10-15 minutos
+
+---
+
+### Error: "OpenAI API error"
+
+**Verificar:**
+
+```bash
+# API key válida?
+curl https://api.openai.com/v1/models \
+  -H "Authorization: Bearer $OPENAI_API_KEY"
+```
+
+**Debería retornar lista de modelos**
+
+**Si falla:**
+1. Verifica que la key empiece con `sk-proj-`
+2. Verifica que no esté expirada
+3. Verifica que tengas créditos en OpenAI
+
+---
+
+## ✅ Checklist Final
+
+Antes de ir a producción, verifica:
+
+```
+✅ Base de datos: Todas las tablas creadas
+✅ RLS: Todas las políticas configuradas
+✅ Trigger: Auto-setup de usuarios funcionando
+✅ Créditos: Se otorgan 100 al registrarse
+✅ GitHub: OAuth funcionando
+✅ Deploy: Subdominios funcionando
+✅ DNS: Wildcard configurado
+✅ SSL: Certificados activos
+✅ IA: Generación de código funcionando
+✅ Variables: Todas configuradas
+✅ Admin: Panel de superadmin accesible
+✅ Performance: Lighthouse > 80
+✅ Logs: Sin errores críticos
+```
+
+---
+
+## 📊 Estado Esperado
+
+**Usuarios:**
+- Registro en < 5 segundos
+- 100 créditos gratis al registrarse
+- Plan Free activo automáticamente
+
+**Proyectos:**
+- Creación instantánea
+- Chat IA responde en 5-10 segundos
+- Files se crean y se ven en explorer
+
+**GitHub:**
+- OAuth en 1 click
+- Lista repos en < 2 segundos
+- Push exitoso con confirmación
+
+**Deployments:**
+- Deploy completo en 2-3 minutos
+- Subdominio activo con SSL
+- URL funcional inmediatamente
+
+---
+
+## 🎯 Métricas de Éxito
+
+**Performance:**
+- Tiempo de carga inicial: < 2 segundos
+- Generación IA: 5-10 segundos
+- Deploy: 2-3 minutos
+- Push GitHub: < 30 segundos
+
+**Uptime:**
+- Objetivo: 99.9% (usando Vercel)
+- Monitoreo: Vercel Analytics
+
+**Usuarios:**
+- Registro exitoso: > 95%
+- IA funcional: > 98%
+- Deployments exitosos: > 90%
+
+---
+
+¡Verificación completada! Si todos los checks pasan, tu instancia de Nexa One está lista para producción. 🚀

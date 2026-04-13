@@ -1,177 +1,393 @@
-# 🚀 Deploy de Nexa One a Vercel con Dominio Personalizado
+# 🚀 Guía de Deployment - Nexa One
 
-## Tu Dominio: nexaoneia.com
+Esta guía te ayudará a configurar completamente tu instancia de Nexa One con GitHub, Vercel y subdominios personalizados.
 
----
+## 📋 Tabla de Contenidos
 
-## 📋 PASO 1: Configurar DNS de tu Dominio
-
-Ve al panel de tu registrador de dominios (donde compraste nexaoneia.com: GoDaddy, Namecheap, Cloudflare, etc.)
-
-### Registros DNS a agregar:
-
-```
-Tipo: A
-Nombre: @ (o déjalo vacío)
-Valor: 76.76.21.21
-TTL: Automático (o 3600)
-
-Tipo: CNAME
-Nombre: www
-Valor: cname.vercel-dns.com
-TTL: Automático (o 3600)
-```
-
-**IMPORTANTE:** Elimina TODOS los registros anteriores de Netlify (A, CNAME, ALIAS) antes de agregar estos.
-
-**Tiempo de propagación:** 5-30 minutos (puede ser hasta 48h)
+1. [Variables de Entorno](#variables-de-entorno)
+2. [Configuración DNS Wildcard](#configuración-dns-wildcard)
+3. [GitHub OAuth App](#github-oauth-app)
+4. [Vercel Token](#vercel-token)
+5. [Deployment Completo](#deployment-completo)
 
 ---
 
-## 🔧 PASO 2: Deploy a Vercel
+## 🔧 Variables de Entorno
 
-### 2.1 - Subir código a GitHub
+Crea o actualiza tu archivo `.env.local` con estas variables:
+
 ```bash
-git add .
-git commit -m "Ready for production deploy"
-git push origin main
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://[tu-proyecto].supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=[tu-anon-key]
+SUPABASE_SERVICE_ROLE_KEY=[tu-service-role-key]
+
+# OpenAI (para generación de código IA)
+OPENAI_API_KEY=sk-proj-[tu-openai-key]
+
+# Anthropic (opcional - para Claude)
+ANTHROPIC_API_KEY=sk-ant-[tu-anthropic-key]
+
+# GitHub OAuth
+GITHUB_CLIENT_ID=[tu-client-id]
+GITHUB_CLIENT_SECRET=[tu-client-secret]
+GITHUB_REDIRECT_URI=https://nexaoneia.com/api/github/callback
+
+# Vercel
+VERCEL_TOKEN=[tu-vercel-token]
+VERCEL_TEAM_ID=[tu-team-id] # Opcional, solo si usas Vercel Team
+
+# Site URL
+NEXT_PUBLIC_SITE_URL=https://nexaoneia.com
+
+# Base Domain (para subdominios)
+NEXT_PUBLIC_BASE_DOMAIN=nexaoneia.com
 ```
-
-### 2.2 - Conectar a Vercel
-1. Ir a https://vercel.com/new
-2. Click "Import Git Repository"
-3. Seleccionar tu repositorio de Nexa One
-4. Click "Import"
-
-### 2.3 - Configurar Variables de Entorno
-En Vercel Dashboard → Settings → Environment Variables, agregar:
-
-```
-NEXT_PUBLIC_SUPABASE_URL=https://deazvergpfgiqmjklupz.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlYXp2ZXJncGZnaXFtamtsdXB6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ2MTg4NTcsImV4cCI6MjA2MDE5NDg1N30.KNh8lPQtA8AXfzLjdqGvTJbPaP8Nx7m2HoXRPQ7V9js
-
-OPENAI_API_KEY=tu_openai_api_key_aqui
-ANTHROPIC_API_KEY=tu_anthropic_api_key_aqui
-
-NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY=APP_USR-6a564eae-b14f-4601-bcc8-5cf913c8f5e7
-MERCADOPAGO_ACCESS_TOKEN=APP_USR-5176517905303899-040605-6b10e7d7475811d83b273bd6a6a648da-3143102298
-
-NEXT_PUBLIC_APP_URL=https://nexaoneia.com
-NEXT_PUBLIC_APP_NAME=Nexa One
-```
-
-**IMPORTANTE:** Copia las API Keys reales de OpenAI y Anthropic desde tus dashboards.
-
-### 2.4 - Deploy
-1. Click "Deploy"
-2. Esperar 2-3 minutos
-3. ✅ Tu app estará en `tu-proyecto.vercel.app`
 
 ---
 
-## 🌐 PASO 3: Conectar Dominio Personalizado
+## 🌐 Configuración DNS Wildcard
 
-### 3.1 - En Vercel
-1. Ir a tu proyecto en Vercel
+Para que los subdominios funcionen (ej: `nexasaaspos.nexaoneia.com`), necesitas configurar un registro DNS wildcard.
+
+### Paso 1: Acceder a tu Panel DNS (NSOne)
+
+1. Ve a https://my.nsone.net/login
+2. Inicia sesión
+3. Selecciona tu zona: `nexaoneia.com`
+
+### Paso 2: Agregar Registro Wildcard
+
+**Opción A: Wildcard apuntando a Vercel**
+
+```
+Type: CNAME
+Name: *
+TTL: 300
+Answer: cname.vercel-dns.com
+```
+
+**Opción B: Wildcard apuntando a IP fija**
+
+```
+Type: A
+Name: *
+TTL: 300
+Answer: 76.76.21.21
+```
+
+### Paso 3: Verificar Configuración
+
+**Desde Terminal:**
+```bash
+# Verificar que el wildcard funciona
+dig random-test.nexaoneia.com
+
+# Deberías ver:
+# random-test.nexaoneia.com. 300 IN CNAME cname.vercel-dns.com.
+```
+
+**Desde Web:**
+1. Ve a https://dnschecker.org
+2. Escribe: `test.nexaoneia.com`
+3. Type: `CNAME`
+4. Deberías ver: `cname.vercel-dns.com`
+
+### Paso 4: Configurar en Vercel
+
+1. Ve a https://vercel.com/dashboard
 2. Settings → Domains
-3. Click "Add Domain"
-4. Escribir: `nexaoneia.com`
-5. Click "Add"
-6. Vercel verificará los DNS (puede tardar unos minutos)
+3. Add Domain: `*.nexaoneia.com`
+4. Vercel verificará automáticamente
 
-### 3.2 - Agregar www (opcional pero recomendado)
-1. Settings → Domains
-2. Click "Add Domain"
-3. Escribir: `www.nexaoneia.com`
-4. Click "Add"
-5. Marcar como "Redirect to nexaoneia.com"
+**IMPORTANTE:** El wildcard permite que cualquier subdominio funcione:
+- ✅ `nexasaaspos.nexaoneia.com`
+- ✅ `miapp.nexaoneia.com`
+- ✅ `cualquier-cosa.nexaoneia.com`
 
 ---
 
-## 🔐 PASO 4: Configurar Supabase Auth
+## 🔐 GitHub OAuth App
 
-### 4.1 - Actualizar Redirect URLs
-1. Ir a https://supabase.com/dashboard/project/deazvergpfgiqmjklupz/auth/url-configuration
-2. En "Site URL" cambiar a: `https://nexaoneia.com`
-3. En "Redirect URLs" agregar:
-   ```
-   https://nexaoneia.com/**
-   https://nexaoneia.com/auth/callback
-   https://www.nexaoneia.com/**
-   ```
-4. Guardar cambios
+Para que los usuarios conecten sus repositorios, necesitas crear una GitHub OAuth App.
 
-### 4.2 - Configurar Email Templates (opcional)
-1. Authentication → Email Templates
-2. Actualizar URLs en los templates de:
-   - Confirmation
-   - Recovery
-   - Magic Link
-   
-   Reemplazar cualquier URL temporal por: `https://nexaoneia.com`
+### Paso 1: Crear OAuth App
+
+1. Ve a https://github.com/settings/developers
+2. Click en **"OAuth Apps"**
+3. Click en **"New OAuth App"**
+
+### Paso 2: Configurar la App
+
+**Application name:**
+```
+Nexa One
+```
+
+**Homepage URL:**
+```
+https://nexaoneia.com
+```
+
+**Application description:**
+```
+AI-powered web app builder with GitHub integration
+```
+
+**Authorization callback URL:**
+```
+https://nexaoneia.com/api/github/callback
+```
+
+### Paso 3: Obtener Credenciales
+
+Después de crear la app:
+
+1. **Client ID:** Copia el Client ID
+2. **Client Secret:** Click en "Generate a new client secret" y cópialo
+
+### Paso 4: Agregar a .env.local
+
+```bash
+GITHUB_CLIENT_ID=Iv1.abc123def456
+GITHUB_CLIENT_SECRET=1234567890abcdef1234567890abcdef12345678
+GITHUB_REDIRECT_URI=https://nexaoneia.com/api/github/callback
+```
+
+### Paso 5: Probar Integración
+
+1. Ve al Builder de un proyecto
+2. Click en **"Conectar GitHub"**
+3. Autoriza la app en GitHub
+4. Deberías ver tus repositorios listados
 
 ---
 
-## 💳 PASO 5: Configurar Webhook de Mercado Pago
+## 🔑 Vercel Token
 
-### Solo cuando actives pagos automáticos:
-1. Ir a https://www.mercadopago.com.ar/developers/panel/notifications/webhooks
-2. Click "Crear webhook"
-3. URL: `https://nexaoneia.com/api/payments/webhook`
-4. Eventos: Seleccionar "Pagos"
-5. Guardar
+Para deployments automáticos, necesitas un token de Vercel.
+
+### Paso 1: Crear Token
+
+1. Ve a https://vercel.com/account/tokens
+2. Click en **"Create Token"**
+3. Nombre: `nexa-one-deployments`
+4. Scope: **Full Access** (o solo deployment si prefieres)
+5. Expiration: **No Expiration** (o 1 año)
+
+### Paso 2: Copiar Token
+
+```bash
+VERCEL_TOKEN=ABC123xyz456DEF789ghi012JKL345
+```
+
+### Paso 3: Obtener Team ID (Opcional)
+
+Si usas Vercel Teams:
+
+1. Ve a https://vercel.com/teams/[tu-team]/settings
+2. Copia el Team ID
+3. Agrégalo a `.env.local`:
+
+```bash
+VERCEL_TEAM_ID=team_abc123xyz456
+```
+
+### Paso 4: Verificar Permisos
+
+Tu token debe tener permisos para:
+- ✅ Crear deployments
+- ✅ Configurar dominios
+- ✅ Leer/escribir proyectos
 
 ---
 
-## ✅ VERIFICACIÓN FINAL
+## 🚀 Deployment Completo
 
-### Checklist de deploy exitoso:
-- [ ] DNS configurados (A y CNAME)
-- [ ] Proyecto deployado en Vercel
-- [ ] Dominio conectado (nexaoneia.com)
-- [ ] SSL/HTTPS activo (Vercel lo hace automático)
-- [ ] Variables de entorno configuradas
-- [ ] Supabase redirect URLs actualizadas
-- [ ] Login funciona
-- [ ] Registro funciona
-- [ ] Chat IA funciona
-- [ ] Preview funciona
+### Paso 1: Deploy Principal en Vercel
 
-### URLs finales:
-- **Producción:** https://nexaoneia.com
-- **Dashboard Vercel:** https://vercel.com/dashboard
-- **Dashboard Supabase:** https://supabase.com/dashboard/project/deazvergpfgiqmjklupz
+**Opción A: Desde Softgen (Recomendado)**
+
+1. Click en **"Publish"** en Softgen
+2. Selecciona **Vercel**
+3. Autoriza con GitHub
+4. Deploy automático
+
+**Opción B: Desde Vercel Dashboard**
+
+1. Ve a https://vercel.com/new
+2. Importa tu repositorio
+3. Framework: **Next.js**
+4. Build Command: `npm run build`
+5. Output Directory: `.next`
+6. Install Command: `npm install`
+
+### Paso 2: Configurar Variables de Entorno en Vercel
+
+1. Vercel Dashboard → Tu Proyecto → Settings → Environment Variables
+2. Agrega TODAS las variables de `.env.local` (excepto las que empiezan con `NEXT_PUBLIC_`)
+3. Environment: **Production, Preview, Development** (marca los 3)
+
+**Variables a Agregar:**
+
+```bash
+SUPABASE_SERVICE_ROLE_KEY=[tu-service-role-key]
+OPENAI_API_KEY=sk-proj-[...]
+GITHUB_CLIENT_ID=[...]
+GITHUB_CLIENT_SECRET=[...]
+GITHUB_REDIRECT_URI=https://nexaoneia.com/api/github/callback
+VERCEL_TOKEN=[...]
+```
+
+**Variables Públicas (agregar también):**
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://[...].supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=[...]
+NEXT_PUBLIC_SITE_URL=https://nexaoneia.com
+NEXT_PUBLIC_BASE_DOMAIN=nexaoneia.com
+```
+
+### Paso 3: Configurar Dominio Principal
+
+1. Vercel → Settings → Domains
+2. Add Domain: `nexaoneia.com`
+3. Add Domain: `www.nexaoneia.com`
+4. Vercel te dirá qué DNS configurar
+
+### Paso 4: Configurar Wildcard Domain
+
+1. Vercel → Settings → Domains
+2. Add Domain: `*.nexaoneia.com`
+3. Verifica que el DNS wildcard esté configurado (ver arriba)
+
+### Paso 5: Redeploy
+
+1. Vercel → Deployments
+2. Click en **...** del último deployment
+3. Click en **Redeploy**
+4. Espera 2-3 minutos
+
+---
+
+## ✅ Verificación Final
+
+### 1. Dominio Principal
+
+```bash
+# Debería responder
+curl https://nexaoneia.com
+```
+
+### 2. Wildcard Subdominios
+
+```bash
+# Debería responder (aunque no exista el proyecto)
+curl https://test.nexaoneia.com
+```
+
+### 3. GitHub OAuth
+
+1. Ve al Builder
+2. Click en "Conectar GitHub"
+3. Deberías ser redirigido a GitHub
+4. Autoriza y verifica que lista tus repos
+
+### 4. Deploy de Proyecto
+
+1. Crea un proyecto en Dashboard
+2. Builder → Click en "Deploy"
+3. Subdominio: `miapp`
+4. Click en "Desplegar"
+5. Espera 2-3 minutos
+6. Visita: `https://miapp.nexaoneia.com`
 
 ---
 
 ## 🐛 Troubleshooting
 
-### "Error: Invalid redirect URL"
-→ Revisar que las redirect URLs en Supabase incluyan `https://nexaoneia.com/**`
+### Error: "GitHub OAuth redirect mismatch"
 
-### "DNS no se resuelve"
-→ Esperar más tiempo (hasta 48h) o verificar que los registros DNS estén correctos
+**Solución:**
+1. Ve a tu GitHub OAuth App
+2. Verifica que el callback URL sea exactamente: `https://nexaoneia.com/api/github/callback`
+3. Sin trailing slash `/`
 
-### "Error 500 en API Routes"
-→ Verificar que TODAS las variables de entorno estén configuradas en Vercel
+### Error: "Vercel deployment failed"
 
-### "Pagos no funcionan"
-→ Verificar que las credenciales de Mercado Pago sean de PRODUCCIÓN y estén correctas
+**Solución:**
+1. Verifica que `VERCEL_TOKEN` sea válido
+2. Verifica que el token tenga permisos de deployment
+3. Revisa los logs en Vercel Dashboard
+
+### Error: "Subdomain not working"
+
+**Solución:**
+1. Verifica que el wildcard DNS esté configurado: `dig *.nexaoneia.com`
+2. Espera 5-15 minutos para propagación DNS
+3. Verifica en Vercel que `*.nexaoneia.com` esté agregado
+
+### Error: "SSL certificate not issued"
+
+**Solución:**
+1. Vercel genera SSL automáticamente (puede tardar 1 hora)
+2. Verifica que el dominio apunte correctamente a Vercel
+3. No requiere acción, es automático
+
+---
+
+## 📊 Flujo Completo de Deployment
+
+```
+Usuario crea proyecto "Nexa SaaS POS"
+        ↓
+Genera subdominio: "nexasaaspos"
+        ↓
+Usuario click en "Deploy"
+        ↓
+API llama a Vercel con token
+        ↓
+Vercel crea deployment en nexasaaspos.nexaoneia.com
+        ↓
+DNS wildcard resuelve *.nexaoneia.com → Vercel
+        ↓
+Vercel genera SSL automático
+        ↓
+App disponible en https://nexasaaspos.nexaoneia.com
+```
+
+---
+
+## 🎯 Estado Ideal
+
+Cuando todo está configurado:
+
+```
+✅ nexaoneia.com → App principal funcionando
+✅ www.nexaoneia.com → Redirect a nexaoneia.com
+✅ *.nexaoneia.com → Wildcard funcionando
+✅ GitHub OAuth → Conectando repositorios
+✅ Vercel Deployments → Creando subdominios
+✅ SSL → Activo en todos los dominios
+```
 
 ---
 
 ## 📞 Soporte
 
-Si tienes problemas:
-1. Verificar logs en Vercel Dashboard → tu proyecto → Deployments → Click en deployment → Logs
-2. Verificar logs en Supabase Dashboard → Logs
-3. Abrir consola del navegador (F12) y buscar errores
+**Si tienes problemas:**
+
+1. Verifica todas las variables de entorno
+2. Revisa los logs de Vercel
+3. Verifica DNS con `dig` o https://dnschecker.org
+4. Contacta al equipo de Nexa One
+
+**Recursos:**
+
+- Vercel Docs: https://vercel.com/docs
+- GitHub OAuth: https://docs.github.com/en/apps/oauth-apps
+- NSOne Docs: https://ns1.com/resources/dns-records-explained
 
 ---
 
-## 🎉 ¡Listo!
-
-Tu plataforma Nexa One estará live en:
-**https://nexaoneia.com**
-
-Deploy time total: ~10-15 minutos + propagación DNS
+¡Listo! Ahora tu instancia de Nexa One está completamente configurada con GitHub, Vercel y subdominios personalizados. 🚀
