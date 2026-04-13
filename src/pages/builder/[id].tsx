@@ -430,8 +430,8 @@ function BuilderContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background cyber-background">
-      <nav className="border-b border-border/50 backdrop-blur-xl bg-background/60 sticky top-0 z-50 shadow-lg">
+    <div className="min-h-screen bg-background cyber-background flex flex-col">
+      <nav className="border-b border-border/50 backdrop-blur-xl bg-background/60 sticky top-0 z-50 shadow-lg safe-area-inset">
         <div className="px-4 sm:px-6">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-4">
@@ -458,7 +458,7 @@ function BuilderContent() {
                   className="border-green-500/50 hover:bg-green-500/10"
                 >
                   <Github className="w-4 h-4 mr-2" />
-                  GitHub Conectado
+                  <span className="hidden sm:inline">GitHub Conectado</span>
                   <Check className="w-3 h-3 ml-2 text-green-400" />
                 </Button>
               ) : (
@@ -469,7 +469,7 @@ function BuilderContent() {
                   className="border-border/50 hover:bg-primary/10"
                 >
                   <Github className="w-4 h-4 mr-2" />
-                  Conectar GitHub
+                  <span className="hidden sm:inline">Conectar GitHub</span>
                 </Button>
               )}
 
@@ -486,10 +486,10 @@ function BuilderContent() {
                 className="cyber-gradient shadow-glow"
               >
                 <Rocket className="w-4 h-4 mr-2" />
-                Deploy
+                <span className="hidden sm:inline">Deploy</span>
               </Button>
 
-              <Badge className="cyber-gradient">
+              <Badge className="cyber-gradient hidden lg:flex">
                 <Sparkles className="w-3 h-3 mr-1" />
                 IA Activa
               </Badge>
@@ -715,52 +715,112 @@ function BuilderContent() {
         </DialogContent>
       </Dialog>
 
-      <main className="flex h-[calc(100vh-4rem)]">
-        <div className="w-[400px] flex-shrink-0 hidden lg:block">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-            <TabsList className="grid grid-cols-3 m-2">
-              <TabsTrigger value="chat">
-                <MessageSquare className="h-4 w-4 mr-2" />
+      {/* Main Content - Fixed Height Layout */}
+      <main className="flex-1 flex overflow-hidden">
+        {/* Desktop: Side by Side | Mobile: Tabs */}
+        <div className="hidden lg:flex w-full">
+          {/* Left Panel: Chat + Files + Versions - Scrollable */}
+          <div className="w-1/3 border-r border-border/50 flex flex-col bg-card/30">
+            <Tabs defaultValue="chat" className="flex-1 flex flex-col">
+              <TabsList className="w-full justify-start rounded-none border-b border-border/50 bg-transparent px-4">
+                <TabsTrigger value="chat" className="data-[state=active]:bg-primary/10">
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Chat IA
+                </TabsTrigger>
+                <TabsTrigger value="files" className="data-[state=active]:bg-primary/10">
+                  <FileCode className="w-4 h-4 mr-2" />
+                  Archivos
+                </TabsTrigger>
+                <TabsTrigger value="versions" className="data-[state=active]:bg-primary/10">
+                  <Clock className="w-4 h-4 mr-2" />
+                  Versiones
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="chat" className="flex-1 m-0 overflow-hidden">
+                <ChatPanel
+                  messages={messages}
+                  onSendMessage={handleSendMessage}
+                  isProcessing={isProcessing}
+                />
+              </TabsContent>
+
+              <TabsContent value="files" className="flex-1 m-0 overflow-hidden">
+                <FileExplorer
+                  files={files}
+                  onFileSelect={(file) => {
+                    // Opcional: mostrar contenido del archivo
+                    console.log("File selected:", file);
+                  }}
+                />
+              </TabsContent>
+
+              <TabsContent value="versions" className="flex-1 m-0 overflow-hidden">
+                <VersionHistory
+                  versions={versions}
+                  onRestoreVersion={(version) => {
+                    // Recargar archivos de esa versión
+                    console.log("Restore version:", version);
+                  }}
+                />
+              </TabsContent>
+            </Tabs>
+          </div>
+
+          {/* Right Panel: Preview - Sticky */}
+          <div className="flex-1 bg-muted/20">
+            <PreviewPanel projectId={project.id} />
+          </div>
+        </div>
+
+        {/* Mobile: Tabs Layout */}
+        <div className="lg:hidden flex flex-col w-full">
+          <Tabs defaultValue="preview" className="flex-1 flex flex-col">
+            <TabsList className="w-full justify-start rounded-none border-b border-border/50 bg-transparent px-2 safe-area-inset">
+              <TabsTrigger value="preview" className="data-[state=active]:bg-primary/10 text-xs">
+                <FileText className="w-3 h-3 mr-1" />
+                Preview
+              </TabsTrigger>
+              <TabsTrigger value="chat" className="data-[state=active]:bg-primary/10 text-xs">
+                <MessageSquare className="w-3 h-3 mr-1" />
                 Chat
               </TabsTrigger>
-              <TabsTrigger value="files">
-                <FileCode className="h-4 w-4 mr-2" />
+              <TabsTrigger value="files" className="data-[state=active]:bg-primary/10 text-xs">
+                <FileCode className="w-3 h-3 mr-1" />
                 Archivos
               </TabsTrigger>
-              <TabsTrigger value="history">
-                <Clock className="h-4 w-4 mr-2" />
-                Versiones
+              <TabsTrigger value="versions" className="data-[state=active]:bg-primary/10 text-xs">
+                <Clock className="w-3 h-3 mr-1" />
+                Historial
               </TabsTrigger>
             </TabsList>
-            
-            <TabsContent value="chat" className="flex-1 m-0">
+
+            <TabsContent value="preview" className="flex-1 m-0 overflow-hidden">
+              <PreviewPanel projectId={project.id} />
+            </TabsContent>
+
+            <TabsContent value="chat" className="flex-1 m-0 overflow-hidden">
               <ChatPanel
                 messages={messages}
                 onSendMessage={handleSendMessage}
                 isProcessing={isProcessing}
               />
             </TabsContent>
-            
-            <TabsContent value="files" className="flex-1 m-0">
+
+            <TabsContent value="files" className="flex-1 m-0 overflow-hidden">
               <FileExplorer
                 files={files}
-                selectedFile={selectedFile?.id}
-                onSelectFile={setSelectedFile}
+                onFileSelect={(file) => console.log("File selected:", file)}
               />
             </TabsContent>
-            
-            <TabsContent value="history" className="flex-1 m-0">
+
+            <TabsContent value="versions" className="flex-1 m-0 overflow-hidden">
               <VersionHistory
                 versions={versions}
-                currentVersionId={versions.find((v) => v.is_current)?.id}
-                onRestoreVersion={handleRestoreVersion}
+                onRestoreVersion={(version) => console.log("Restore version:", version)}
               />
             </TabsContent>
           </Tabs>
-        </div>
-
-        <div className="flex-1 overflow-hidden">
-          <PreviewPanel projectId={project.id} />
         </div>
       </main>
     </div>

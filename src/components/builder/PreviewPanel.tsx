@@ -1,104 +1,69 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { RefreshCw, ExternalLink, Smartphone, Monitor, Tablet, Loader2 } from "lucide-react";
+import { ExternalLink, RefreshCw } from "lucide-react";
 
 interface PreviewPanelProps {
   projectId: string;
-  previewUrl?: string;
 }
 
-export function PreviewPanel({ projectId, previewUrl }: PreviewPanelProps) {
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [viewMode, setViewMode] = useState<"desktop" | "tablet" | "mobile">("desktop");
+export function PreviewPanel({ projectId }: PreviewPanelProps) {
+  const [iframeKey, setIframeKey] = useState(0);
+  const previewUrl = `http://localhost:3000/preview/${projectId}`;
 
   function handleRefresh() {
-    setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 1000);
+    setIframeKey((prev) => prev + 1);
   }
 
-  const widthClass = {
-    desktop: "w-full",
-    tablet: "max-w-[768px] mx-auto",
-    mobile: "max-w-[375px] mx-auto",
-  }[viewMode];
+  function handleOpenExternal() {
+    window.open(previewUrl, "_blank");
+  }
 
   return (
     <div className="flex flex-col h-full bg-background">
-      <div className="p-4 border-b border-border/50 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Vista Previa</h2>
-        
+      {/* Preview Header */}
+      <div className="flex items-center justify-between px-3 sm:px-4 py-2 border-b border-border/50 bg-card/30 backdrop-blur-sm">
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 p-1 rounded-lg bg-card border border-border/50">
-            <Button
-              variant={viewMode === "desktop" ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("desktop")}
-            >
-              <Monitor className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === "tablet" ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("tablet")}
-            >
-              <Tablet className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === "mobile" ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("mobile")}
-            >
-              <Smartphone className="h-4 w-4" />
-            </Button>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-red-500" />
+            <div className="w-2 h-2 rounded-full bg-yellow-500" />
+            <div className="w-2 h-2 rounded-full bg-green-500" />
           </div>
-          
+          <span className="text-xs sm:text-sm text-muted-foreground ml-2">
+            Preview en Vivo
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1 sm:gap-2">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleRefresh}
-            disabled={isRefreshing}
+            className="h-8 px-2 sm:px-3"
           >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="ml-1.5 hidden sm:inline text-xs">Refresh</span>
           </Button>
-          
-          {previewUrl && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => window.open(previewUrl, "_blank")}
-            >
-              <ExternalLink className="h-4 w-4" />
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleOpenExternal}
+            className="h-8 px-2 sm:px-3"
+          >
+            <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="ml-1.5 hidden sm:inline text-xs">Abrir</span>
+          </Button>
         </div>
       </div>
 
-      <div className="flex-1 p-4 overflow-auto">
-        <div className={`${widthClass} transition-all duration-300`}>
-          {previewUrl ? (
-            <Card className="glass-panel border-border/50 overflow-hidden" style={{ height: "calc(100vh - 200px)" }}>
-              <iframe
-                src={previewUrl}
-                className="w-full h-full border-0"
-                title="Preview"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-              />
-            </Card>
-          ) : (
-            <Card className="glass-panel border-border/50 flex items-center justify-center" style={{ height: "calc(100vh - 200px)" }}>
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-                  <Monitor className="h-8 w-8 text-primary" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">Preview en construcción</h3>
-                <p className="text-sm text-muted-foreground max-w-xs">
-                  La vista previa aparecerá aquí cuando generes tu primera aplicación
-                </p>
-              </div>
-            </Card>
-          )}
-        </div>
+      {/* Preview Iframe - Ocupa todo el espacio restante */}
+      <div className="flex-1 relative overflow-hidden bg-muted/20">
+        <iframe
+          key={iframeKey}
+          src={previewUrl}
+          className="absolute inset-0 w-full h-full border-0"
+          title="Preview"
+          sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
+        />
       </div>
     </div>
   );
