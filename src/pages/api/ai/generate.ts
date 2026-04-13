@@ -249,15 +249,17 @@ export default async function handler(
 
     // 5. Guardar archivos en Supabase
     for (const file of generatedCode.files || []) {
-      const { error: fileError } = await supabase.from("project_files").upsert(
+      const { error: fileError } = await supabase.from("project_files" as any).upsert(
         {
           project_id: projectId,
-          path: file.path,
+          file_path: file.path,
+          file_name: file.path.split('/').pop() || "file",
+          version_id: "draft",
           content: file.content,
           updated_at: new Date().toISOString(),
-        },
+        } as any,
         {
-          onConflict: "project_id,path",
+          onConflict: "project_id,file_path" as any,
         }
       );
 
@@ -267,7 +269,7 @@ export default async function handler(
     }
 
     // 6. Descontar créditos
-    const { error: deductError } = await supabase.rpc("deduct_credits", {
+    const { error: deductError } = await (supabase.rpc as any)("deduct_credits", {
       p_user_id: userId,
       p_amount: generationCost,
       p_description: `Generación con ${modelUsed}`,
@@ -278,14 +280,14 @@ export default async function handler(
     }
 
     // 7. Guardar mensaje en conversación
-    await supabase.from("conversation_messages").insert([
+    await supabase.from("messages" as any).insert([
       {
-        project_id: projectId,
+        conversation_id: projectId,
         role: "user",
         content: prompt,
-      },
+      } as any,
       {
-        project_id: projectId,
+        conversation_id: projectId,
         role: "assistant",
         content: generatedCode.message || "Código generado exitosamente",
         metadata: {
@@ -293,7 +295,7 @@ export default async function handler(
           creditsUsed: generationCost,
           filesGenerated: generatedCode.files?.length || 0,
         },
-      },
+      } as any,
     ]);
 
     // 8. Respuesta exitosa
