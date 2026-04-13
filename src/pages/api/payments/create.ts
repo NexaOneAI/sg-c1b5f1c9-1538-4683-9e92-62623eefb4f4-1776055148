@@ -121,10 +121,11 @@ export default async function handler(
       currency: "USD",
       status: "pending",
       payment_method: "mercadopago",
-      plan_type: plan,
+      payment_provider: "mercadopago",
       metadata: {
         preference_id: data.id,
         init_point: data.init_point,
+        plan_type: plan,
       },
     });
 

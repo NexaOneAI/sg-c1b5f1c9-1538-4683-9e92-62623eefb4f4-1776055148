@@ -64,10 +64,11 @@ export default async function handler(
       .from("payments")
       .update({
         status: "completed",
-        payment_id: paymentId.toString(),
+        provider_payment_id: paymentId.toString(),
         metadata: {
           ...payment.metadata,
           payment_details: payment,
+          plan_type: plan,
         },
       })
       .eq("user_id", userId)
@@ -92,8 +93,8 @@ export default async function handler(
         .update({
           plan_type: plan,
           status: "active",
-          start_date: startDate.toISOString(),
-          end_date: endDate.toISOString(),
+          started_at: startDate.toISOString(),
+          expires_at: endDate.toISOString(),
           auto_renew: true,
         })
         .eq("user_id", userId);
@@ -102,8 +103,8 @@ export default async function handler(
         user_id: userId,
         plan_type: plan,
         status: "active",
-        start_date: startDate.toISOString(),
-        end_date: endDate.toISOString(),
+        started_at: startDate.toISOString(),
+        expires_at: endDate.toISOString(),
         auto_renew: true,
       });
     }
@@ -131,15 +132,12 @@ export default async function handler(
         },
       });
 
-      // Actualizar perfil con nuevo plan
+      // Actualizar perfil (marcar unlimited_credits si es premium)
+      const isUnlimited = plan === "premium";
       await supabase
         .from("profiles")
         .update({ 
-          current_plan: plan,
-          metadata: {
-            last_payment_date: new Date().toISOString(),
-            plan_activated: true,
-          },
+          unlimited_credits: isUnlimited,
         })
         .eq("id", userId);
     }

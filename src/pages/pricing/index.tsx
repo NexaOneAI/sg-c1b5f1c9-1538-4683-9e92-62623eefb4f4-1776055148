@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Check } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Check, ArrowLeft, Zap, Rocket, Crown } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -81,7 +82,9 @@ export default function PricingPage() {
       name: "Free",
       price: "$0",
       period: "/mes",
+      credits: "100 créditos / mes",
       description: "Perfecto para comenzar",
+      icon: Zap,
       features: [
         "100 créditos mensuales",
         "3 proyectos activos",
@@ -98,7 +101,9 @@ export default function PricingPage() {
       name: "Pro",
       price: "$29.99",
       period: "/mes",
+      credits: "1,000 créditos / mes",
       description: "Para desarrolladores serios",
+      icon: Rocket,
       features: [
         "1,000 créditos mensuales",
         "50 proyectos activos",
@@ -116,7 +121,9 @@ export default function PricingPage() {
       name: "Premium",
       price: "$99.99",
       period: "/mes",
+      credits: "Ilimitado",
       description: "Máxima potencia",
+      icon: Crown,
       features: [
         "Créditos ilimitados",
         "Proyectos ilimitados",
