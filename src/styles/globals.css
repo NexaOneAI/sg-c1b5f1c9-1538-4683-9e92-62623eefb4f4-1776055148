@@ -1,84 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Orbitron:wght@400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-}
-
 @layer base {
   :root {
-    --radius: 0.55rem;
-    --background: 0 0% 100%;
-    --foreground: 330 0% 0.3%;
-    --card: 0 0% 100%;
-    --card-foreground: 330 0% 0.3%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 330 0% 0.3%;
-    --primary: 0 0% 4.5%;
-    --primary-foreground: 0 0% 97.5%;
-    --secondary: 0 0% 97.3%;
-    --secondary-foreground: 0 0% 4.5%;
-    --muted: 0 0% 97.3%;
-    --muted-foreground: 0 0% 55.7%;
-    --accent: 0 0% 97.3%;
-    --accent-foreground: 0 0% 4.5%;
-    --destructive: 359.9132 100.2494% 67.8807%;
-    --destructive-foreground: 0 0% 0%;
-    --border: 0 0% 92.2%;
-    --input: 0 0% 92.2%;
-    --ring: 0 0% 70.8%;
-    --chart-1: 41.1 71.2% 54.4%;
-    --chart-2: 184.7 32.4% 48.6%;
-    --chart-3: 227.4 15.2% 33.3%;
-    --chart-4: 84.4 74.8% 75.7%;
-    --chart-5: 70.1 74.3% 70.5%;
-    --sidebar: 0 0% 97.5%;
-    --sidebar-foreground: 330 0% 0.3%;
-    --sidebar-primary: 0 0% 4.5%;
-    --sidebar-primary-foreground: 0 0% 97.5%;
-    --sidebar-accent: 0 0% 97.3%;
-    --sidebar-accent-foreground: 0 0% 4.5%;
-    --sidebar-border: 0 0% 92.2%;
-    --sidebar-ring: 0 0% 70.8%;
-  }
-
-  .dark {
-    --radius: 0.55rem;
-    --background: 330 0% 0.3%;
-    --foreground: 0 0% 97.5%;
-    --card: 0 0% 4.5%;
-    --card-foreground: 0 0% 97.5%;
-    --popover: 0 0% 8.6%;
-    --popover-foreground: 0 0% 97.5%;
-    --primary: 0 0% 92.2%;
-    --primary-foreground: 0 0% 4.5%;
-    --secondary: 0 0% 8.6%;
-    --secondary-foreground: 0 0% 97.5%;
-    --muted: 0 0% 8.6%;
-    --muted-foreground: 0 0% 70.8%;
-    --accent: 0 0% 21.2%;
-    --accent-foreground: 0 0% 97.5%;
-    --destructive: 359.9132 100.2494% 67.8807%;
-    --destructive-foreground: 0 0% 0%;
-    --border: 0 0% 100% / 15%;
-    --input: 0 0% 100% / 15%;
-    --ring: 0 0% 55.7%;
-    --chart-1: 264.4 77.2% 41.9%;
-    --chart-2: 162.5 46.7% 57.3%;
-    --chart-3: 70.1 74.3% 70.5%;
-    --chart-4: 303.9 75.8% 51.6%;
-    --chart-5: 16.4 84.7% 55.4%;
-    --sidebar: 0 0% 4.5%;
-    --sidebar-foreground: 0 0% 97.5%;
-    --sidebar-primary: 264.4 77.2% 41.9%;
-    --sidebar-primary-foreground: 0 0% 97.5%;
-    --sidebar-accent: 0 0% 8.6%;
-    --sidebar-accent-foreground: 0 0% 97.5%;
-    --sidebar-border: 0 0% 100% / 10%;
-    --sidebar-ring: 0 0% 43.9%;
+    /* Nexa One Brand Colors - Cyber Neon Theme */
+    --background: 240 15% 4%;           /* Deep space black #0A0A0F */
+    --foreground: 240 5% 96%;           /* Soft white #F5F5F7 */
+    
+    --card: 240 12% 8%;                 /* Dark card #131318 */
+    --card-foreground: 240 5% 96%;
+    
+    --popover: 240 15% 6%;
+    --popover-foreground: 240 5% 96%;
+    
+    --primary: 271 91% 65%;             /* Neon purple #A855F7 */
+    --primary-foreground: 240 5% 96%;
+    
+    --secondary: 189 94% 43%;           /* Electric cyan #06B6D4 */
+    --secondary-foreground: 240 15% 4%;
+    
+    --accent: 271 91% 65%;              /* Purple accent */
+    --accent-foreground: 240 5% 96%;
+    
+    --muted: 240 8% 15%;                /* Muted bg #242429 */
+    --muted-foreground: 240 5% 65%;     /* Muted text #A1A1AA */
+    
+    --destructive: 0 84% 60%;           /* Red #F87171 */
+    --destructive-foreground: 240 5% 96%;
+    
+    --border: 240 8% 18%;               /* Border #2A2A31 */
+    --input: 240 8% 18%;
+    --ring: 271 91% 65%;                /* Purple ring */
+    
+    --radius: 0.5rem;
+    
+    /* Nexa One Custom Tokens */
+    --neon-purple: 271 91% 65%;         /* #A855F7 */
+    --neon-cyan: 189 94% 43%;           /* #06B6D4 */
+    --cyber-pink: 330 81% 60%;          /* #EC4899 */
+    --glow-purple: 271 91% 65%;
+    --glow-cyan: 189 94% 43%;
+    --surface-elevated: 240 12% 10%;    /* Elevated surfaces */
+    --success: 142 76% 36%;             /* #10B981 */
   }
 }
 
@@ -86,13 +52,58 @@
   * {
     @apply border-border;
   }
+  
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
   }
 }
 
-@layer components {
-  .container {
-    @apply mx-auto px-4 md:px-6 lg:px-8 max-w-7xl w-full;
+@layer utilities {
+  .glow-purple {
+    filter: drop-shadow(0 0 8px hsl(var(--glow-purple) / 0.5));
+  }
+  
+  .glow-cyan {
+    filter: drop-shadow(0 0 8px hsl(var(--glow-cyan) / 0.5));
+  }
+  
+  .neon-border-purple {
+    box-shadow: 0 0 10px hsl(var(--neon-purple) / 0.3),
+                0 0 20px hsl(var(--neon-purple) / 0.2),
+                inset 0 0 10px hsl(var(--neon-purple) / 0.1);
+  }
+  
+  .neon-border-cyan {
+    box-shadow: 0 0 10px hsl(var(--neon-cyan) / 0.3),
+                0 0 20px hsl(var(--neon-cyan) / 0.2),
+                inset 0 0 10px hsl(var(--neon-cyan) / 0.1);
+  }
+  
+  .cyber-gradient {
+    background: linear-gradient(135deg, 
+      hsl(var(--neon-purple) / 0.8) 0%, 
+      hsl(var(--neon-cyan) / 0.8) 100%
+    );
+  }
+  
+  .cyber-gradient-text {
+    background: linear-gradient(135deg, 
+      hsl(var(--neon-purple)) 0%, 
+      hsl(var(--neon-cyan)) 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .glass-panel {
+    background: hsl(var(--card) / 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--border) / 0.5);
   }
 }
