@@ -96,10 +96,32 @@ function BuilderContent() {
     }
 
     try {
-      // Llamar a la API de generación real
+      // Obtener el token de sesión actual
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        const errorMessage = await addMessage(
+          conversation.id,
+          project.id,
+          user.id,
+          "assistant",
+          "❌ Error: Sesión expirada. Por favor, recarga la página e inicia sesión nuevamente."
+        );
+        
+        if (errorMessage) {
+          setMessages((prev) => [...prev, errorMessage]);
+        }
+        setIsProcessing(false);
+        return;
+      }
+
+      // Llamar a la API de generación real con el token de autenticación
       const response = await fetch("/api/ai/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`, // Enviar token de sesión
+        },
         body: JSON.stringify({
           projectId: project.id,
           userId: user.id,
