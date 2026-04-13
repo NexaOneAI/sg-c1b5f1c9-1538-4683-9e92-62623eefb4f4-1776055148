@@ -1,41 +1,61 @@
 {
   "name": "Nexa One - AI App Builder",
   "short_name": "Nexa One",
-  "description": "Plataforma SaaS premium para crear aplicaciones web mediante conversaciones con IA",
+  "description": "Construye aplicaciones web con inteligencia artificial. Código automático, deploy instantáneo.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0A0A0F",
   "theme_color": "#A855F7",
-  "orientation": "portrait-primary",
+  "orientation": "any",
+  "scope": "/",
   "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
     {
       "src": "/logo.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
-    },
-    {
-      "src": "/favicon.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
     }
   ],
-  "categories": ["productivity", "developer tools"],
   "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Ver todos tus proyectos",
+      "url": "/dashboard",
+      "icons": [
+        {
+          "src": "/logo.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
     {
       "name": "Nuevo Proyecto",
       "short_name": "Nuevo",
       "description": "Crear un nuevo proyecto",
-      "url": "/dashboard?action=new",
-      "icons": [{ "src": "/favicon.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "Dashboard",
-      "short_name": "Dashboard",
-      "description": "Ver todos mis proyectos",
-      "url": "/dashboard",
-      "icons": [{ "src": "/favicon.png", "sizes": "192x192" }]
+      "url": "/dashboard?new=true",
+      "icons": [
+        {
+          "src": "/logo.png",
+          "sizes": "192x192"
+        }
+      ]
     }
-  ]
+  ],
+  "screenshots": [
+    {
+      "src": "/og-image.png",
+      "sizes": "1200x630",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ],
+  "categories": ["productivity", "development", "utilities"],
+  "prefer_related_applications": false
 }
