@@ -163,9 +163,9 @@ function DashboardContent() {
       <div className="fixed bottom-0 right-0 w-[500px] h-[500px] bg-accent/10 rounded-full blur-[100px] translate-x-1/2 translate-y-1/2 animate-pulse" style={{ animationDelay: "1s" }} />
 
       {/* Header */}
-      <nav className="border-b border-border/50 backdrop-blur-xl bg-background/60 sticky top-0 z-50 shadow-lg">
+      <nav className="border-b border-border/50 backdrop-blur-xl bg-background/60 sticky top-0 z-50 shadow-lg safe-area-inset">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex justify-between items-center h-14 sm:h-16">
             <div className="flex items-center gap-4">
               <Logo size="sm" />
               <Badge className="cyber-gradient hidden sm:flex items-center gap-1">
@@ -239,15 +239,15 @@ function DashboardContent() {
         </div>
       </nav>
 
-      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 relative z-10 pb-20 sm:pb-8">
         {/* Welcome Section */}
-        <div className="mb-12 animate-fade-in">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+        <div className="mb-8 sm:mb-12 animate-fade-in">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 sm:gap-6">
             <div>
-              <h1 className="text-4xl sm:text-5xl font-display font-bold mb-2 neon-text-primary">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-display font-bold mb-2 neon-text-primary">
                 Bienvenido, {profile?.full_name?.split(" ")[0] || "Desarrollador"}
               </h1>
-              <p className="text-muted-foreground text-lg">
+              <p className="text-sm sm:text-base text-muted-foreground">
                 Construye el futuro con IA • {projects.length} {projects.length === 1 ? "proyecto activo" : "proyectos activos"}
               </p>
             </div>
@@ -256,7 +256,7 @@ function DashboardContent() {
               onClick={handleCreateProject}
               disabled={creating}
               size="lg"
-              className="cyber-gradient hover:opacity-90 shadow-glow-lg group relative overflow-hidden"
+              className="cyber-gradient hover:opacity-90 shadow-glow-lg group relative overflow-hidden w-full sm:w-auto h-12 sm:h-14"
             >
               {creating ? (
                 <>
@@ -275,58 +275,58 @@ function DashboardContent() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8 animate-slide-in">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8 animate-slide-in">
           <Card className="glass-panel border-border/50 hover:border-primary/30 transition-all duration-300 group">
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground mb-1">Proyectos Activos</p>
-                  <p className="text-3xl font-bold font-display neon-text-primary">{projects.length}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground mb-1">Proyectos Activos</p>
+                  <p className="text-2xl sm:text-3xl font-bold font-display neon-text-primary">{projects.length}</p>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-glow">
-                  <Folder className="h-6 w-6 text-white" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-glow shrink-0">
+                  <Folder className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="glass-panel border-border/50 hover:border-accent/30 transition-all duration-300 group">
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground mb-1">Créditos Disponibles</p>
-                  <p className="text-3xl font-bold font-display neon-text-accent">{credits.toLocaleString()}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground mb-1">Créditos Disponibles</p>
+                  <p className="text-2xl sm:text-3xl font-bold font-display neon-text-accent">{credits.toLocaleString()}</p>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-glow-accent">
-                  <Sparkles className="h-6 w-6 text-white" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-glow-accent shrink-0">
+                  <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="glass-panel border-border/50 hover:border-green-500/30 transition-all duration-300 group">
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground mb-1">Generaciones IA</p>
-                  <p className="text-3xl font-bold font-display text-green-400">∞</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground mb-1">Generaciones IA</p>
+                  <p className="text-2xl sm:text-3xl font-bold font-display text-green-400">∞</p>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-glow">
-                  <Code2 className="h-6 w-6 text-white" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-glow shrink-0">
+                  <Code2 className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="glass-panel border-border/50 hover:border-yellow-500/30 transition-all duration-300 group">
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground mb-1">Preview en Vivo</p>
-                  <p className="text-3xl font-bold font-display text-yellow-400">24/7</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground mb-1">Preview en Vivo</p>
+                  <p className="text-2xl sm:text-3xl font-bold font-display text-yellow-400">24/7</p>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-glow">
-                  <Zap className="h-6 w-6 text-white" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-glow shrink-0">
+                  <Zap className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
               </div>
             </CardContent>

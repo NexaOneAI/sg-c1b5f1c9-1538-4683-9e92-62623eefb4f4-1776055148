@@ -252,7 +252,7 @@ export default function Home() {
           <div className="container-responsive py-6 sm:py-8">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4 text-xs sm:text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
-                <Logo size="xs" />
+                <Logo size="sm" />
                 <span>© 2026 Nexa One. Todos los derechos reservados.</span>
               </div>
               <div className="flex gap-4 sm:gap-6">
