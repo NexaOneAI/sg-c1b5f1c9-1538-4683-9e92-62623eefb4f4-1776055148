@@ -50,6 +50,7 @@ export async function deductCredits(
     .from("credit_transactions")
     .insert({
       wallet_id: wallet.id,
+      user_id: userId,
       amount: -amount,
       type: "usage",
       description,
