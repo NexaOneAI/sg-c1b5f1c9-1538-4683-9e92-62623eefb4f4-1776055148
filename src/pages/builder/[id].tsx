@@ -430,8 +430,8 @@ function BuilderContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background cyber-background flex flex-col">
-      <nav className="border-b border-border/50 backdrop-blur-xl bg-background/60 sticky top-0 z-50 shadow-lg safe-area-inset">
+    <div className="h-screen bg-background cyber-background flex flex-col overflow-hidden">
+      <nav className="border-b border-border/50 backdrop-blur-xl bg-background/60 shrink-0 z-50 shadow-lg safe-area-inset">
         <div className="px-4 sm:px-6">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-4">
@@ -748,10 +748,6 @@ function BuilderContent() {
               <TabsContent value="files" className="flex-1 m-0 overflow-hidden">
                 <FileExplorer
                   files={files}
-                  onFileSelect={(file) => {
-                    // Opcional: mostrar contenido del archivo
-                    console.log("File selected:", file);
-                  }}
                 />
               </TabsContent>
 
@@ -810,7 +806,6 @@ function BuilderContent() {
             <TabsContent value="files" className="flex-1 m-0 overflow-hidden">
               <FileExplorer
                 files={files}
-                onFileSelect={(file) => console.log("File selected:", file)}
               />
             </TabsContent>
 
