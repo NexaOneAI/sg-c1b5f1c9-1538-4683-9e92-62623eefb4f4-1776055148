@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "@/integrations/supabase/client";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -116,6 +116,9 @@ export default async function handler(
   }
 
   try {
+    // Crear cliente Supabase con la sesión del usuario
+    const supabase = createServerSupabaseClient(req);
+
     // 1. Obtener costos configurados para cada modelo
     const { data: settings } = await supabase
       .from("admin_settings")
@@ -132,16 +135,22 @@ export default async function handler(
     const selectedModel = modelCosts[model] || modelCosts.gpt4;
     const generationCost = selectedModel.cost || 10;
 
-    // 2. Verificar créditos del usuario - FIX: Usar balance real, no solo verificar existencia
+    // 2. Verificar créditos del usuario con el cliente autenticado
     const { data: wallet, error: walletError } = await supabase
       .from("credit_wallets")
       .select("id, balance")
       .eq("user_id", userId)
       .single();
 
-    console.log("💰 Wallet check:", { wallet, walletError, userId, generationCost });
+    console.log("💰 Wallet check:", { 
+      wallet, 
+      walletError, 
+      userId, 
+      generationCost,
+      hasAuthHeader: !!req.headers.authorization 
+    });
 
-    if (walletError || !wallet) {
+    if (walletError) {
       console.error("❌ Error obteniendo wallet:", walletError);
       return res.status(402).json({
         success: false,
@@ -149,18 +158,30 @@ export default async function handler(
       });
     }
 
-    // FIX: Comparar balance numérico correctamente
+    if (!wallet) {
+      console.error("❌ Wallet no encontrado para userId:", userId);
+      return res.status(402).json({
+        success: false,
+        error: "No se encontró tu wallet de créditos. Contacta a soporte.",
+      });
+    }
+
+    // Comparar balance numérico correctamente
     const currentBalance = Number(wallet.balance) || 0;
     
     if (currentBalance < generationCost) {
       console.log("❌ Insufficient credits:", { currentBalance, generationCost });
       return res.status(402).json({
         success: false,
-        error: `Insufficient credits. This operation requires ${generationCost} credits. You have ${currentBalance} credits. Please purchase more credits to continue.`,
+        error: `Créditos insuficientes. Esta operación requiere ${generationCost} créditos. Tienes ${currentBalance} créditos disponibles.`,
       });
     }
 
-    console.log("✅ Credits verified:", { currentBalance, generationCost, remaining: currentBalance - generationCost });
+    console.log("✅ Credits verified:", { 
+      currentBalance, 
+      generationCost, 
+      remaining: currentBalance - generationCost 
+    });
 
     // 3. Construir contexto del prompt con archivos y mensajes previos
     const contextStr = context?.files
@@ -232,7 +253,7 @@ export default async function handler(
       throw new Error("Invalid AI response format");
     }
 
-    // 6. Descontar créditos - FIX: Usar el wallet.id que ya tenemos
+    // 6. Descontar créditos usando el cliente autenticado
     const { error: transactionError } = await supabase.from("credit_transactions").insert({
       wallet_id: wallet.id,
       user_id: userId,
@@ -321,7 +342,7 @@ export default async function handler(
 
     return res.status(500).json({
       success: false,
-      error: error.message || "Internal server error during code generation",
+      error: error.message || "Error interno del servidor durante la generación de código",
     });
   }
 }
