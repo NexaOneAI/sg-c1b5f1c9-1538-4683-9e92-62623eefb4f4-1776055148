@@ -7,30 +7,25 @@ interface LogoProps {
   href?: string;
 }
 
-export function Logo({ size = "md", showText = true, href }: LogoProps) {
+export function Logo({ size = "md", showText = false, href }: LogoProps) {
   const dimensions = {
-    sm: { img: 32, text: "text-lg" },
-    md: { img: 48, text: "text-2xl" },
-    lg: { img: 64, text: "text-4xl" },
+    sm: { img: 120, height: 40 },
+    md: { img: 180, height: 60 },
+    lg: { img: 240, height: 80 },
   };
 
-  const { img, text } = dimensions[size];
+  const { img, height } = dimensions[size];
 
   const content = (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center">
       <Image
-        src="/inbound6875946183305017278.jpg"
-        alt="Nexa One"
+        src="/logo.png"
+        alt="Nexa One Life"
         width={img}
-        height={img}
-        className="rounded-lg"
+        height={height}
+        className="object-contain"
         priority
       />
-      {showText && (
-        <span className={`${text} font-bold neon-text-primary font-['Orbitron']`}>
-          Nexa One
-        </span>
-      )}
     </div>
   );
 
