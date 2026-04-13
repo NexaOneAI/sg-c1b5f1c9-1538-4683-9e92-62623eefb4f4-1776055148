@@ -18,11 +18,13 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [setupMessage, setSetupMessage] = useState("");
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
+    setSetupMessage("Creando cuenta...");
 
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
@@ -37,11 +39,19 @@ export default function RegisterPage() {
     if (signUpError) {
       setError(signUpError.message);
       setLoading(false);
+      setSetupMessage("");
     } else if (data.user) {
+      setSetupMessage("Configurando perfil y créditos...");
+      
+      // Esperar a que el trigger cree el perfil, wallet y suscripción
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       setSuccess(true);
+      setSetupMessage("¡Todo listo! Redirigiendo...");
+      
       setTimeout(() => {
         router.push("/dashboard");
-      }, 2000);
+      }, 1500);
     }
   }
 
@@ -72,7 +82,14 @@ export default function RegisterPage() {
               {success && (
                 <Alert className="border-success/50 bg-success/10 text-success">
                   <CheckCircle className="h-4 w-4" />
-                  <AlertDescription>¡Cuenta creada! Redirigiendo...</AlertDescription>
+                  <AlertDescription>{setupMessage}</AlertDescription>
+                </Alert>
+              )}
+              
+              {loading && !success && setupMessage && (
+                <Alert className="border-primary/50 bg-primary/10">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <AlertDescription>{setupMessage}</AlertDescription>
                 </Alert>
               )}
               
