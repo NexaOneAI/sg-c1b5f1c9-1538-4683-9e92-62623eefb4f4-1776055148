@@ -59,8 +59,10 @@ function SettingsContent() {
   }
 
   async function handleSaveProfile() {
+    if (!profile?.id) return;
+    
     setSaving(true);
-    const success = await updateProfile(formData);
+    const success = await updateProfile(profile.id, formData);
     
     if (success) {
       toast({
