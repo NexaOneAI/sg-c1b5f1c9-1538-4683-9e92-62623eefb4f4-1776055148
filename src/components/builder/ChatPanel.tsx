@@ -4,19 +4,47 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar } from "@/components/ui/avatar";
-import { Send, Sparkles, User, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Send, Sparkles, User, Loader2, Zap, Brain, Cpu } from "lucide-react";
 import type { Message } from "@/services/conversationService";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
+type AIModel = "gpt4" | "claude_sonnet" | "claude_opus";
+
 interface ChatPanelProps {
   messages: Message[];
-  onSendMessage: (content: string) => Promise<void>;
+  onSendMessage: (content: string, model: AIModel) => Promise<void>;
   isProcessing: boolean;
 }
 
+const AI_MODELS = [
+  { 
+    value: "gpt4" as const, 
+    label: "GPT-4 Turbo", 
+    cost: 10,
+    icon: Zap,
+    description: "Rápido y eficiente"
+  },
+  { 
+    value: "claude_sonnet" as const, 
+    label: "Claude Sonnet", 
+    cost: 20,
+    icon: Brain,
+    description: "Arquitectura compleja"
+  },
+  { 
+    value: "claude_opus" as const, 
+    label: "Claude Opus", 
+    cost: 40,
+    icon: Cpu,
+    description: "Máxima calidad"
+  },
+];
+
 export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelProps) {
   const [input, setInput] = useState("");
+  const [selectedModel, setSelectedModel] = useState<AIModel>("gpt4");
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -32,7 +60,7 @@ export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelPr
 
     const content = input;
     setInput("");
-    await onSendMessage(content);
+    await onSendMessage(content, selectedModel);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -42,16 +70,40 @@ export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelPr
     }
   }
 
+  const currentModel = AI_MODELS.find(m => m.value === selectedModel) || AI_MODELS[0];
+  const ModelIcon = currentModel.icon;
+
   return (
     <div className="flex flex-col h-full bg-card/50 border-r border-border/50">
-      <div className="p-4 border-b border-border/50">
+      <div className="p-4 border-b border-border/50 space-y-3">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary" />
           Chat IA
         </h2>
-        <p className="text-sm text-muted-foreground">
-          Describe lo que quieres crear
-        </p>
+        
+        <Select value={selectedModel} onValueChange={(v) => setSelectedModel(v as AIModel)}>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {AI_MODELS.map((model) => {
+              const Icon = model.icon;
+              return (
+                <SelectItem key={model.value} value={model.value}>
+                  <div className="flex items-center gap-2">
+                    <Icon className="h-4 w-4" />
+                    <div className="flex flex-col">
+                      <span className="font-medium">{model.label}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {model.description} • {model.cost} créditos
+                      </span>
+                    </div>
+                  </div>
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
       </div>
 
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
@@ -117,7 +169,7 @@ export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelPr
               <Card className="glass-panel border-border/50 p-3">
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  <span className="text-sm text-muted-foreground">Procesando...</span>
+                  <span className="text-sm text-muted-foreground">Generando código con {currentModel.label}...</span>
                 </div>
               </Card>
             </div>
@@ -125,7 +177,11 @@ export function ChatPanel({ messages, onSendMessage, isProcessing }: ChatPanelPr
         </div>
       </ScrollArea>
 
-      <form onSubmit={handleSubmit} className="p-4 border-t border-border/50">
+      <form onSubmit={handleSubmit} className="p-4 border-t border-border/50 space-y-2">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <ModelIcon className="h-3 w-3" />
+          <span>{currentModel.label} • {currentModel.cost} créditos por generación</span>
+        </div>
         <div className="flex gap-2">
           <Textarea
             ref={textareaRef}
