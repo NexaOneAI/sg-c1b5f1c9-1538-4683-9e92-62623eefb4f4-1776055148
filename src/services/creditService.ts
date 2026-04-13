@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
+import type { Database, Tables } from "@/integrations/supabase/types";
 
 export type CreditWallet = Tables<"credit_wallets">;
 export type CreditTransaction = Tables<"credit_transactions">;
@@ -20,10 +20,13 @@ export async function getCreditWallet(userId: string): Promise<CreditWallet | nu
 }
 
 export async function getCreditTransactions(userId: string): Promise<CreditTransaction[]> {
+  const wallet = await getCreditWallet(userId);
+  if (!wallet) return [];
+
   const { data, error } = await supabase
     .from("credit_transactions")
     .select("*")
-    .eq("user_id", userId)
+    .eq("wallet_id", wallet.id)
     .order("created_at", { ascending: false });
   
   if (error) {
@@ -40,10 +43,13 @@ export async function deductCredits(
   description: string,
   metadata?: Record<string, any>
 ): Promise<boolean> {
+  const wallet = await getCreditWallet(userId);
+  if (!wallet) return false;
+
   const { error } = await supabase
     .from("credit_transactions")
     .insert({
-      user_id: userId,
+      wallet_id: wallet.id,
       amount: -amount,
       type: "usage",
       description,

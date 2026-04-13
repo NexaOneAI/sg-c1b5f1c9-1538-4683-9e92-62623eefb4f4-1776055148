@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import type { Database, Tables } from "@/integrations/supabase/types";
 
 export type Project = Tables<"projects">;
 export type ProjectVersion = Tables<"project_versions">;
@@ -37,12 +37,16 @@ export async function getProject(projectId: string): Promise<Project | null> {
 
 export async function createProject(
   userId: string,
-  projectData: Omit<TablesInsert<"projects">, "user_id">
+  projectData: Omit<Database["public"]["Tables"]["projects"]["Insert"], "user_id">
 ): Promise<Project | null> {
   const { data, error } = await supabase
     .from("projects")
     .insert({
-      ...projectData,
+      name: projectData.name,
+      description: projectData.description || null,
+      status: projectData.status || "active",
+      framework: projectData.framework || "react",
+      metadata: projectData.metadata || null,
       user_id: userId,
     })
     .select()
@@ -106,12 +110,17 @@ export async function getProjectVersions(projectId: string): Promise<ProjectVers
 
 export async function createProjectVersion(
   projectId: string,
-  versionData: Omit<TablesInsert<"project_versions">, "project_id">
+  versionData: Omit<Database["public"]["Tables"]["project_versions"]["Insert"], "project_id">
 ): Promise<ProjectVersion | null> {
   const { data, error } = await supabase
     .from("project_versions")
     .insert({
-      ...versionData,
+      version_number: versionData.version_number,
+      name: versionData.name || null,
+      description: versionData.description || null,
+      metadata: versionData.metadata || null,
+      is_current: versionData.is_current ?? true,
+      created_by: versionData.created_by || null,
       project_id: projectId,
     })
     .select()
@@ -142,15 +151,22 @@ export async function getProjectFiles(projectId: string): Promise<ProjectFile[]>
 
 export async function upsertProjectFile(
   projectId: string,
+  versionId: string,
   filePath: string,
-  content: string
+  fileName: string,
+  content: string,
+  fileType: string = "typescript"
 ): Promise<ProjectFile | null> {
   const { data, error } = await supabase
     .from("project_files")
     .upsert({
       project_id: projectId,
+      version_id: versionId,
       file_path: filePath,
+      file_name: fileName,
       content,
+      file_type: fileType,
+      size_bytes: content.length,
     })
     .select()
     .single();

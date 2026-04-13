@@ -1,7 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import type { Database, Tables } from "@/integrations/supabase/types";
 
 export type Profile = Tables<"profiles">;
+export type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 
 export async function getCurrentProfile(): Promise<Profile | null> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -24,7 +25,7 @@ export async function getCurrentProfile(): Promise<Profile | null> {
 
 export async function updateProfile(
   userId: string,
-  updates: TablesUpdate<"profiles">
+  updates: ProfileUpdate
 ): Promise<Profile | null> {
   const { data, error } = await supabase
     .from("profiles")
