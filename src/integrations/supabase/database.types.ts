@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type Json =
   | string
   | number
@@ -174,6 +174,103 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "credit_wallets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deployment_logs: {
+        Row: {
+          build_log: string | null
+          completed_at: string | null
+          created_at: string | null
+          deployment_id: string | null
+          deployment_url: string | null
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          project_id: string
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          build_log?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          deployment_id?: string | null
+          deployment_url?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          project_id: string
+          started_at?: string | null
+          status: string
+        }
+        Update: {
+          build_log?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          deployment_id?: string | null
+          deployment_url?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          project_id?: string
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deployment_logs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      github_connections: {
+        Row: {
+          connected_at: string | null
+          created_at: string | null
+          github_access_token: string
+          github_refresh_token: string | null
+          github_username: string
+          id: string
+          last_synced_at: string | null
+          metadata: Json | null
+          token_expires_at: string | null
+          user_id: string
+        }
+        Insert: {
+          connected_at?: string | null
+          created_at?: string | null
+          github_access_token: string
+          github_refresh_token?: string | null
+          github_username: string
+          id?: string
+          last_synced_at?: string | null
+          metadata?: Json | null
+          token_expires_at?: string | null
+          user_id: string
+        }
+        Update: {
+          connected_at?: string | null
+          created_at?: string | null
+          github_access_token?: string
+          github_refresh_token?: string | null
+          github_username?: string
+          id?: string
+          last_synced_at?: string | null
+          metadata?: Json | null
+          token_expires_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "github_connections_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
             referencedRelation: "profiles"
@@ -450,9 +547,16 @@ export type Database = {
         Row: {
           created_at: string | null
           current_version_id: string | null
+          custom_subdomain: string | null
+          deployment_status: string | null
+          deployment_url: string | null
           description: string | null
           framework: string | null
+          github_branch: string | null
+          github_connected_at: string | null
+          github_repo_url: string | null
           id: string
+          last_deployed_at: string | null
           metadata: Json | null
           name: string
           status: string
@@ -462,9 +566,16 @@ export type Database = {
         Insert: {
           created_at?: string | null
           current_version_id?: string | null
+          custom_subdomain?: string | null
+          deployment_status?: string | null
+          deployment_url?: string | null
           description?: string | null
           framework?: string | null
+          github_branch?: string | null
+          github_connected_at?: string | null
+          github_repo_url?: string | null
           id?: string
+          last_deployed_at?: string | null
           metadata?: Json | null
           name: string
           status?: string
@@ -474,9 +585,16 @@ export type Database = {
         Update: {
           created_at?: string | null
           current_version_id?: string | null
+          custom_subdomain?: string | null
+          deployment_status?: string | null
+          deployment_url?: string | null
           description?: string | null
           framework?: string | null
+          github_branch?: string | null
+          github_connected_at?: string | null
+          github_repo_url?: string | null
           id?: string
+          last_deployed_at?: string | null
           metadata?: Json | null
           name?: string
           status?: string
