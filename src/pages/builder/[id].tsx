@@ -17,6 +17,8 @@ import type { Project, ProjectFile, ProjectVersion } from "@/services/projectSer
 import type { Conversation, Message } from "@/services/conversationService";
 import { ArrowLeft, Loader2, Settings, FileCode, Clock, MessageSquare } from "lucide-react";
 
+type AIModel = "gpt4" | "claude_sonnet" | "claude_opus";
+
 export default function BuilderPage() {
   return (
     <AuthGuard>
@@ -79,7 +81,7 @@ function BuilderContent() {
     setLoading(false);
   }
 
-  async function handleSendMessage(content: string) {
+  async function handleSendMessage(content: string, model: AIModel) {
     if (!conversation || !project) return;
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -87,28 +89,92 @@ function BuilderContent() {
 
     setIsProcessing(true);
 
+    // Agregar mensaje del usuario
     const userMessage = await addMessage(conversation.id, project.id, user.id, "user", content);
     if (userMessage) {
       setMessages((prev) => [...prev, userMessage]);
     }
 
-    // TODO: Aquí irá la integración con OpenAI
-    // Por ahora, respuesta simulada
-    setTimeout(async () => {
+    try {
+      // Llamar a la API de generación real
+      const response = await fetch("/api/ai/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: project.id,
+          userId: user.id,
+          prompt: content,
+          model: model,
+          context: {
+            files: files.map(f => ({ path: f.file_path, content: f.content })),
+            previousMessages: messages.slice(-5).map(m => ({
+              role: m.role,
+              content: m.content,
+            })),
+          },
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        const errorMessage = await addMessage(
+          conversation.id,
+          project.id,
+          user.id,
+          "assistant",
+          `❌ Error: ${result.error}`
+        );
+        
+        if (errorMessage) {
+          setMessages((prev) => [...prev, errorMessage]);
+        }
+        setIsProcessing(false);
+        return;
+      }
+
+      // Agregar respuesta del asistente
       const assistantMessage = await addMessage(
         conversation.id,
         project.id,
         user.id,
         "assistant",
-        "Funcionalidad de IA en desarrollo. Próximamente podrás generar código real con OpenAI."
+        result.code.explanation || "Código generado exitosamente",
+        {
+          modelUsed: result.modelUsed,
+          creditsUsed: result.creditsUsed,
+          filesGenerated: result.code.files?.length || 0,
+        }
       );
       
       if (assistantMessage) {
         setMessages((prev) => [...prev, assistantMessage]);
       }
+
+      // Recargar archivos y versiones del proyecto
+      const [updatedFiles, updatedVersions] = await Promise.all([
+        getProjectFiles(project.id),
+        getProjectVersions(project.id),
+      ]);
+
+      setFiles(updatedFiles);
+      setVersions(updatedVersions);
+
+    } catch (error: any) {
+      const errorMessage = await addMessage(
+        conversation.id,
+        project.id,
+        user.id,
+        "assistant",
+        `❌ Error de conexión: ${error.message}`
+      );
       
-      setIsProcessing(false);
-    }, 2000);
+      if (errorMessage) {
+        setMessages((prev) => [...prev, errorMessage]);
+      }
+    }
+    
+    setIsProcessing(false);
   }
 
   async function handleRestoreVersion(version: ProjectVersion) {
