@@ -748,6 +748,7 @@ function BuilderContent() {
               <TabsContent value="files" className="flex-1 m-0 overflow-hidden">
                 <FileExplorer
                   files={files}
+                  onSelectFile={(file) => console.log("File selected:", file)}
                 />
               </TabsContent>
 
@@ -806,6 +807,7 @@ function BuilderContent() {
             <TabsContent value="files" className="flex-1 m-0 overflow-hidden">
               <FileExplorer
                 files={files}
+                onSelectFile={(file) => console.log("File selected:", file)}
               />
             </TabsContent>
 
