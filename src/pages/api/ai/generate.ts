@@ -7,18 +7,26 @@ import Anthropic from "@anthropic-ai/sdk";
  * API Route: /api/ai/generate
  * 
  * Sistema dual de IA con OpenAI y Claude:
- * - GPT-4 Turbo: Tareas generales y rápidas (10 créditos)
- * - Claude 3.5 Sonnet: Arquitectura compleja (20 créditos)
- * - Claude 3 Opus: Máxima calidad (40 créditos)
+ * - GPT-4o Mini: Tareas generales y rápidas (10 créditos) - MÁS ACCESIBLE
+ * - GPT-3.5 Turbo: Fallback si GPT-4o no disponible (5 créditos)
+ * - Claude 3.5 Sonnet: Arquitectura compleja (20 créditos) - Requiere ANTHROPIC_API_KEY
+ * - Claude 3 Opus: Máxima calidad (40 créditos) - Requiere ANTHROPIC_API_KEY
  * 
  * SETUP REQUERIDO:
  * 1. OpenAI: https://platform.openai.com/api-keys
- * 2. Claude: https://console.anthropic.com/
- * 3. Agregar ambas API keys en .env.local
- * 4. npm install openai @anthropic-ai/sdk
+ *    - Crear API key
+ *    - Agregar créditos prepagados (mínimo $5)
+ *    - Verificar acceso en: https://platform.openai.com/settings/organization/limits
+ * 
+ * 2. Claude (OPCIONAL): https://console.anthropic.com/
+ *    - Solo si quieres usar modelos Claude
+ * 
+ * 3. Agregar API keys en .env.local:
+ *    OPENAI_API_KEY=sk-proj-...
+ *    ANTHROPIC_API_KEY=sk-ant-... (opcional)
  */
 
-type AIModel = "gpt4" | "claude_sonnet" | "claude_opus";
+type AIModel = "gpt4" | "gpt3" | "claude_sonnet" | "claude_opus";
 
 type GenerateRequest = {
   projectId: string;
@@ -50,9 +58,9 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const anthropic = new Anthropic({
+const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
-});
+}) : null;
 
 const SYSTEM_PROMPT = `Eres un experto arquitecto de software y desarrollador full-stack especializado en React, TypeScript, Next.js y Tailwind CSS.
 
@@ -127,9 +135,10 @@ export default async function handler(
       .single();
 
     const modelCosts = (settings?.value as Record<string, any>) || {
-      gpt4: { cost: 10 },
-      claude_sonnet: { cost: 20 },
-      claude_opus: { cost: 40 },
+      gpt4: { cost: 10, name: "GPT-4o Mini" },
+      gpt3: { cost: 5, name: "GPT-3.5 Turbo" },
+      claude_sonnet: { cost: 20, name: "Claude 3.5 Sonnet" },
+      claude_opus: { cost: 40, name: "Claude 3 Opus" },
     };
 
     const selectedModel = modelCosts[model] || modelCosts.gpt4;
@@ -195,6 +204,14 @@ export default async function handler(
     let modelUsed = "";
 
     if (model === "claude_sonnet" || model === "claude_opus") {
+      // Verificar si Claude está configurado
+      if (!anthropic || !process.env.ANTHROPIC_API_KEY) {
+        return res.status(400).json({
+          success: false,
+          error: "Claude no está configurado. Agrega ANTHROPIC_API_KEY a .env.local o usa GPT-4o Mini.",
+        });
+      }
+
       // Usar Claude para tareas complejas
       const claudeModel = model === "claude_opus" 
         ? "claude-3-opus-20240229" 
@@ -226,7 +243,7 @@ export default async function handler(
       modelUsed = model === "claude_opus" ? "Claude 3 Opus" : "Claude 3.5 Sonnet";
 
     } else {
-      // Usar OpenAI GPT-4 para tareas generales
+      // Usar OpenAI GPT-4o Mini o GPT-3.5 Turbo
       const messages: OpenAI.ChatCompletionMessageParam[] = [
         { role: "system", content: SYSTEM_PROMPT },
         ...(context?.previousMessages?.map(m => ({
@@ -236,16 +253,57 @@ export default async function handler(
         { role: "user", content: fullPrompt },
       ];
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4-turbo-preview",
-        messages,
-        temperature: 0.7,
-        max_tokens: 4000,
-        response_format: { type: "json_object" },
-      });
+      // Intentar con GPT-4o Mini primero
+      let openaiModel = "gpt-4o-mini";
+      modelUsed = "GPT-4o Mini";
 
-      generatedCode = JSON.parse(completion.choices[0].message.content || "{}");
-      modelUsed = "GPT-4 Turbo";
+      if (model === "gpt3") {
+        openaiModel = "gpt-3.5-turbo";
+        modelUsed = "GPT-3.5 Turbo";
+      }
+
+      try {
+        const completion = await openai.chat.completions.create({
+          model: openaiModel,
+          messages,
+          temperature: 0.7,
+          max_tokens: 4000,
+          response_format: { type: "json_object" },
+        });
+
+        generatedCode = JSON.parse(completion.choices[0].message.content || "{}");
+
+      } catch (openaiError: any) {
+        // Si GPT-4o Mini falla por falta de acceso, intentar con GPT-3.5 Turbo
+        if (openaiError.status === 403 || openaiError.status === 401) {
+          console.log("⚠️ GPT-4o Mini no disponible, intentando con GPT-3.5 Turbo...");
+          
+          try {
+            const completion = await openai.chat.completions.create({
+              model: "gpt-3.5-turbo",
+              messages,
+              temperature: 0.7,
+              max_tokens: 4000,
+              response_format: { type: "json_object" },
+            });
+
+            generatedCode = JSON.parse(completion.choices[0].message.content || "{}");
+            modelUsed = "GPT-3.5 Turbo (fallback)";
+            
+          } catch (fallbackError: any) {
+            console.error("❌ Error con GPT-3.5 Turbo:", fallbackError);
+            throw new Error(
+              `No tienes acceso a modelos de IA. Verifica tu API key de OpenAI:\n` +
+              `1. Ve a https://platform.openai.com/api-keys\n` +
+              `2. Crea una nueva API key\n` +
+              `3. Agrega créditos en https://platform.openai.com/settings/organization/billing\n` +
+              `4. Actualiza OPENAI_API_KEY en .env.local`
+            );
+          }
+        } else {
+          throw openaiError;
+        }
+      }
     }
 
     // 5. Validar estructura del response
@@ -323,13 +381,17 @@ export default async function handler(
     });
 
   } catch (error: any) {
-    console.error("Error in /api/ai/generate:", error);
+    console.error("❌ Error in /api/ai/generate:", error);
     
-    // Errores específicos de APIs
-    if (error.status === 401) {
+    // Errores específicos de OpenAI
+    if (error.status === 401 || error.status === 403) {
       return res.status(500).json({
         success: false,
-        error: "API key inválida. Verifica tus credenciales de OpenAI/Claude en .env.local",
+        error: `Error de autenticación con OpenAI:\n\n` +
+               `1. Verifica tu API key en .env.local\n` +
+               `2. Agrega créditos en: https://platform.openai.com/settings/organization/billing\n` +
+               `3. Verifica acceso a modelos en: https://platform.openai.com/settings/organization/limits\n\n` +
+               `Error técnico: ${error.message}`,
       });
     }
 
